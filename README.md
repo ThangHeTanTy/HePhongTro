@@ -13,7 +13,11 @@
 - **Tính tiền hàng tháng:** chốt số điện, nước giếng, nước máy; tiền rác, wifi, phí khác; nợ chuyển kỳ; tính tiền phòng theo ngày ở tháng đầu.
 - **Tính lại hóa đơn** theo từng phòng hoặc cả khu khi đổi giá, có xem trước chênh lệch.
 - **Ảnh đồng hồ điện, nước:** chụp ảnh hoặc chọn ảnh có sẵn trong máy cho từng đồng hồ. Ảnh được lưu làm bằng chứng, kèm trong ảnh hóa đơn, xem, lưu về máy hoặc xóa được.
-- **Chốt số bằng ảnh:** đi lần lượt từng phòng (chụp, nhập số, *Lưu, tiếp*), hoặc chọn một lúc nhiều ảnh đã chụp sẵn để app gán lần lượt theo thứ tự phòng. Khi chạy trên Claude, Claude tự đọc số trên ảnh.
+- **Chốt số bằng ảnh:** đi lần lượt từng phòng (chụp, kiểm số, *Lưu, tiếp*), hoặc chọn một lúc nhiều ảnh đã chụp sẵn để app gán lần lượt theo thứ tự phòng.
+- **Tự đọc số trên ảnh** và điền sẵn vào ô *Chỉ số mới*, bạn so với ảnh rồi bấm lưu. Cách đọc (Thiết lập › Đọc số trên ảnh):
+  - trong app Claude: Claude đọc;
+  - nếu đã nhập khóa Claude API: gọi Claude (`claude-opus-5-5`) thẳng từ trình duyệt, chính xác, có tính phí theo tài khoản Anthropic;
+  - còn lại: bộ đọc chữ [Tesseract.js](https://github.com/naptha/tesseract.js) chạy trên máy, miễn phí, chọn số hợp lý theo số cũ và mức dùng trung bình, cần so kỹ.
 - **Xuất Excel** tiền điện, tiền nước, tổng hợp và thu chi; **ảnh hóa đơn** có mã VietQR cho từng phòng; ảnh sao kê công nợ.
 - **Trang người thuê** (khi chạy trên Claude): người thuê nhập mã phòng để xem hóa đơn, mã QR và báo hỏng hóc.
 - **Giấy tờ (.docx):** hợp đồng thuê phòng, tờ khai thay đổi thông tin cư trú (mẫu CT01, Thông tư 53/2025/TT-BCA), biên bản bàn giao phòng.
@@ -33,7 +37,7 @@ docs/nhac-viec.md Nội dung tác vụ nhắc việc hằng ngày trên Claude
 android/          App Android: WebView chạy index.html, đóng gói APK bằng GitHub Actions
 ```
 
-Thư viện tải từ cdnjs khi cần: three.js r128 (3D), SheetJS 0.18.5 (Excel), JSZip 3.10.1 (tệp nén, .docx), qrcode-generator 1.4.4 (VietQR).
+Thư viện tải từ cdnjs khi cần: three.js r128 (3D), SheetJS 0.18.5 (Excel), JSZip 3.10.1 (tệp nén, .docx), qrcode-generator 1.4.4 (VietQR). Từ jsDelivr khi tự đọc số ngoài Claude: Tesseract.js 7.0.0 (cùng tesseract.js-core 7.0.0 và dữ liệu chữ `@tesseract.js-data/eng` 1.0.0), `@anthropic-ai/sdk` 1.3.0 (chỉ khi có khóa API).
 
 ## Chạy
 
@@ -51,7 +55,7 @@ Sau đó mở `index.html` bằng trình duyệt, hoặc bật GitHub Pages cho 
 |---|---|---|
 | Lưu dữ liệu | Theo tài khoản Claude, mở máy khác vẫn thấy | Trong trình duyệt của máy đó, nên sao lưu ra tệp định kỳ (*Sao lưu kèm ảnh đồng hồ* để giữ cả ảnh) |
 | Chụp, tải ảnh đồng hồ | Có, ảnh lưu theo tài khoản Claude | Có, ảnh lưu trên máy đó (IndexedDB) |
-| Tự đọc số trên ảnh đồng hồ | Có | Không, nhập số khi xem ảnh |
+| Tự đọc số trên ảnh đồng hồ | Có (Claude) | Có: bộ đọc trên máy (miễn phí), hoặc Claude API nếu nhập khóa |
 | Trang người thuê, báo hỏng | Có | Không |
 | Nhắc qua thông báo điện thoại | Có (tác vụ hằng ngày) | Dùng nút thêm vào Google Calendar |
 | Mô hình 3D, tính tiền, Excel, ảnh hóa đơn, giấy tờ, thu chi | Có | Có |
