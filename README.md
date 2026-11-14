@@ -8,7 +8,9 @@
 ## Tính năng
 
 - **Nhiều khu trọ:** tạo khu, tự đánh số phòng theo tầng (101, 102, 201…) hoặc liên tiếp (1, 2, 3…).
-- **Mô hình 3D phòng:** nhập rộng, dài, cao trần, gác lửng, cầu thang (có hoặc không lan can), nhà vệ sinh (vị trí và hướng cửa), cửa sổ tầng dưới và trên gác (chọn tường), bàn bếp (dài, rộng, cao, tường đặt), máy lạnh (tầng, tường, công suất). Mô hình vẽ lại ngay khi chỉnh, khung 3D được ghim khi cuộn. App cảnh báo khi các thứ chồng lên nhau, chắn lối đi hoặc quá thấp.
+- **Mô hình 3D phòng:** nhập rộng, dài, cao trần, cửa ra vào (trái, giữa, phải hoặc cửa cuốn kiot), gác lửng, cầu thang (có hoặc không lan can), nhà vệ sinh (vị trí và hướng cửa), cửa sổ tầng dưới và trên gác (chọn tường), bàn bếp (dài, rộng, cao, tường đặt), máy lạnh (tầng, tường, công suất). Mô hình vẽ lại ngay khi chỉnh, khung 3D được ghim khi cuộn. App cảnh báo khi các thứ chồng lên nhau, chắn lối đi hoặc quá thấp.
+- **Thiết kế dùng chung:** ngoài *Mẫu chung*, tạo thêm thiết kế có tên (vd. *Kiot mặt tiền*), chọn nhiều phòng để dùng chung; sửa thiết kế thì các phòng đó đổi theo. Phòng vẫn có thể có kích thước riêng.
+- **Sơ đồ dãy trọ 3D:** dựng cả khu từ các phòng: chọn phòng kiot quay mặt ra đường; kiểu *một dãy* (lối đi và cửa các phòng phía sau nằm bên trái hoặc bên phải kiot) hoặc *hai dãy* quay cửa vào nhau với hành lang giữa; độ rộng lối đi; phòng tầng trên xếp chồng lên. Có mặt tiền, chiều sâu tổng.
 - **Người thuê:** họ tên, ngày dọn vào, số người, người ở cùng, chỉ số điện và nước lúc vào, tiền cọc, ngày trả phòng (cảnh báo khi sắp tới hạn).
 - **Tính tiền hàng tháng:** chốt số điện, nước giếng, nước máy; tiền rác, wifi, phí khác; nợ chuyển kỳ; tính tiền phòng theo ngày ở tháng đầu.
 - **Tính lại hóa đơn** theo từng phòng hoặc cả khu khi đổi giá, có xem trước chênh lệch.

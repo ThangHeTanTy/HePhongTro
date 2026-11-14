@@ -438,7 +438,13 @@ function syncHTML(){const t={local:'Lưu trên máy này',saving:'Đang lưu…'
 /* =========================== domain =========================== */
 function newProp(name,address){return{id:uid6(),name,address,createdAt:new Date().toISOString(),prices:clone(DEFAULT_PRICES),bank:{bin:'',acct:'',holder:''},layout:clone(DEFAULT_LAYOUT),dueDay:5,prorate:false,carryDebt:true,invoiceNote:'',owner:{name:'',phone:'',cccd:'',address:''},readDay:1,terms:'',equipment:'',closedPortals:[],rooms:[]}}
 function newRoom(no,floor,rent){return{id:uid6(),no:String(no),floor:floor??1,rent:rent||0,noWifi:false,layout:null,tenant:null,history:[],note:''}}
-function roomLayout(p,room){if(room&&room.layout)return room.layout;if(room&&room.ac){const l=clone(p.layout);l.ac=Object.assign({},room.ac);return l}return p.layout}
+// Thiết kế 3D: p.layout là "Mẫu chung"; p.designs là các thiết kế có tên (vd. Kiot) dùng chung cho nhiều phòng;
+// room.design trỏ tới thiết kế, room.layout là kích thước riêng của một phòng (ưu tiên cao nhất).
+function designOf(p,id){return id&&id!=='default'?(p.designs||[]).find(d=>d.id===id)||null:null}
+function designLayout(p,id){const d=designOf(p,id);return d?d.layout:p.layout}
+function designName(p,id){const d=designOf(p,id);return d?d.name:'Mẫu chung'}
+function roomUses(p,r,did){return!r.layout&&(did==='default'?!designOf(p,r.design):r.design===did)}
+function roomLayout(p,room){if(room&&room.layout)return room.layout;const base=designLayout(p,room&&room.design);if(room&&room.ac){const l=clone(base);l.ac=Object.assign({},room.ac);return l}return base}
 function acOf(p,room){const l=roomLayout(p,room);return l&&l.ac&&l.ac.on?l.ac:null}
 function billKey(pid,m){return pid+'_'+m}
 function getBill(pid,m){return S.bills[billKey(pid,m)]}
@@ -540,15 +546,15 @@ function layoutInfo(l){
     const wx0=left?0:W-wc.w,wx1=wx0+ +wc.w,wz0=back?L-wc.d:0,wz1=wz0+ +wc.d;
     if(lo.on&&st.on&&o.stairStart!=null){const sx0=st.side==='left'?0:W-sw,sx1=sx0+sw;
       if(sx0<wx1&&sx1>wx0&&o.stairStart<wz1&&(L-d)>wz0)warns.push('Cầu thang đang chồng lên nhà vệ sinh. Đổi phía cầu thang hoặc vị trí WC.');}
-    if(!back){const dx=doorX(l,W);if(dx-0.45<wx1&&dx+0.45>wx0)warns.push('Nhà vệ sinh chắn cửa ra vào. Đổi vị trí cửa hoặc WC.')}
+    if(!back){const dx=doorX(l,W);if(dx-doorHalf(l,W)<wx1&&dx+doorHalf(l,W)>wx0)warns.push('Nhà vệ sinh chắn cửa ra vào. Đổi vị trí cửa hoặc WC.')}
     if(back&&lo.on&&wc.d>d+0.01)warns.push('Nhà vệ sinh sâu hơn phần gác, phần nhô ra sẽ không có sàn gác phía trên.');
   }
-  if(lo.on&&st.on&&o.stairStart!=null&&o.stairStart<0.9){const dx=doorX(l,W);const sx0=st.side==='left'?0:W-sw;if(dx-0.45<sx0+sw&&dx+0.45>sx0)warns.push('Chân cầu thang sát cửa ra vào, đi lại sẽ vướng.')}
+  if(lo.on&&st.on&&o.stairStart!=null&&o.stairStart<0.9){const dx=doorX(l,W);const sx0=st.side==='left'?0:W-sw;if(dx-doorHalf(l,W)<sx0+sw&&dx+doorHalf(l,W)>sx0)warns.push('Chân cầu thang sát cửa ra vào, đi lại sẽ vướng.')}
   if(lo.on&&st.on&&st.rail===false&&lo.h>=2)warns.push(`Cầu thang cao ${f2(lo.h)} m mà không có lan can, dễ té ngã. Nên có ít nhất tay vịn một bên.`);
   const wd=wcDoor(l);
   if(wd){if(wd.ddw<0.5)warns.push(`Tường đặt cửa nhà vệ sinh quá ngắn, cửa chỉ rộng được ${f2(Math.max(0,wd.ddw))} m.`);
     const sr=stairRect(l);if(ovl(wd.zone,sr))warns.push('Cầu thang chắn trước cửa nhà vệ sinh. Đổi hướng cửa WC hoặc phía cầu thang.');
-    const dx=doorX(l,W);if(ovl(wd.zone,{x0:dx-0.45,x1:dx+0.45,z0:0,z1:0.9}))warns.push('Cửa nhà vệ sinh mở ngay lối cửa ra vào, đi lại sẽ vướng.')}
+    const dx=doorX(l,W);if(ovl(wd.zone,{x0:dx-doorHalf(l,W),x1:dx+doorHalf(l,W),z0:0,z1:0.9}))warns.push('Cửa nhà vệ sinh mở ngay lối cửa ra vào, đi lại sẽ vướng.')}
   const gw=groundWin(l);if(gw&&gw.fail)warns.push(gw.fail==='blocked'?`Tường ${WALLN[gw.wall]} không còn chỗ trống làm cửa sổ (vướng cửa ra vào, nhà vệ sinh hoặc cầu thang). Chọn tường khác.`:gw.fail==='space'?`Tường ${WALLN[gw.wall]} quá ngắn để làm cửa sổ.`:`Tường ${WALLN[gw.wall]} quá thấp để làm cửa sổ (dưới gác hoặc trên bàn bếp).`);
   const lw2=loftWin(l);if(lw2&&lw2.fail)warns.push(lw2.fail==='space'?`Gác quá nông để làm cửa sổ ở tường ${WALLN[lw2.wall]}.`:'Trên gác quá thấp để làm cửa sổ.');
   if(l.ac&&l.ac.on){const sp=acSpot(l);if(sp&&sp.fail)warns.push(sp.fail==='blocked'?`Tường ${WALLN[sp.wall]} không còn chỗ treo máy lạnh (vướng cửa sổ, cầu thang hoặc nhà vệ sinh). Chọn tường khác.`:'Chỗ treo máy lạnh quá thấp (dưới 1,8 m). Thử treo trên gác hoặc tường khác.');
@@ -561,14 +567,16 @@ function layoutInfo(l){
     if(ovl(kr,stairRect(l)))warns.push('Bàn bếp chồng lên cầu thang.');
     else{const sr=stairRect(l);if(sr&&sr.z0>0&&ovl(kr,{x0:sr.x0,x1:sr.x1,z0:Math.max(0,sr.z0-0.6),z1:sr.z0}))warns.push('Bàn bếp chắn chân cầu thang.')}
     if(ovl(kr,wd&&wd.zone))warns.push('Bàn bếp chắn cửa nhà vệ sinh.');
-    const dx=doorX(l,W);if(ovl(kr,{x0:dx-0.45,x1:dx+0.45,z0:0,z1:0.9}))warns.push('Bàn bếp chắn lối cửa ra vào.');
+    const dx=doorX(l,W);if(ovl(kr,{x0:dx-doorHalf(l,W),x1:dx+doorHalf(l,W),z0:0,z1:0.9}))warns.push('Bàn bếp chắn lối cửa ra vào.');
     if(k.h<0.75||k.h>0.95)warns.push(`Bàn bếp cao ${f2(k.h)} m. Chiều cao dễ nấu thường 0,8–0,9 m.`);
     const d2=lo.on?Math.min(+lo.depth||0,L-0.6):0;const under=lo.on&&kr.z1>L-d2+0.05;if(under&&lo.h-lo.t-k.h<0.6)warns.push(`Bàn bếp nằm dưới gác, khoảng trống phía trên chỉ ${f2(lo.h-lo.t-k.h)} m, khói nóng dễ bám sàn gác.`);
     if(kr.auto&&kr.hits)warns.push('Không tìm được chỗ trống cho bàn bếp trên tường này. Thử tường khác hoặc rút ngắn bàn bếp.');
   }
   return o;
 }
-function doorX(l,W){return l.door==='left'?0.25+0.45:l.door==='center'?W/2:W-0.25-0.45}
+function doorX(l,W){return l.door==='left'?0.25+0.45:l.door==='center'||l.door==='shop'?W/2:W-0.25-0.45}
+// Nửa bề rộng cửa ra vào: cửa đi 0,9 m, hoặc cửa cuốn kiot gần hết mặt tiền.
+function doorHalf(l,W){return l.door==='shop'?Math.max(0.45,(W-0.3)/2):0.45}
 function normLayout(l){
   if(!l)return l;
   l.loft=Object.assign({on:false,h:2.4,depth:2.8,t:0.1},l.loft||{});
@@ -593,7 +601,7 @@ function stairRect(l){const lo=l.loft||{},st=l.stair||{};if(!lo.on||!st.on)retur
 function kitchenRect(l){
   const k=l.kitchen;if(!k||!k.on)return null;const W=+l.W,L=+l.L;const len=+k.len,dep=+k.dep;const side=k.wall==='left'||k.wall==='right';const wallLen=side?L:W;
   const at=o=>side?{x0:k.wall==='left'?0:W-dep,x1:k.wall==='left'?dep:W,z0:o,z1:o+len}:{x0:o,x1:o+len,z0:k.wall==='back'?L-dep:0,z1:k.wall==='back'?L:dep};
-  const dx=doorX(l,W);const obs=[wcRect(l),wcDoor(l)&&wcDoor(l).zone,stairRect(l),{x0:dx-0.45,x1:dx+0.45,z0:0,z1:0.9}];
+  const dx=doorX(l,W);const obs=[wcRect(l),wcDoor(l)&&wcDoor(l).zone,stairRect(l),{x0:dx-doorHalf(l,W),x1:dx+doorHalf(l,W),z0:0,z1:0.9}];
   const sr=stairRect(l);if(sr&&sr.z0>0)obs.push({x0:sr.x0,x1:sr.x1,z0:Math.max(0,sr.z0-0.6),z1:sr.z0});
   const hits=r=>obs.filter(o=>ovl(r,o)).length;const maxO=Math.max(0,wallLen-len);
   if(k.off!=null&&k.off!==''){const o=clamp(+k.off,0,maxO);const r=at(o);return Object.assign(r,{auto:false,hits:hits(r),tooLong:len>wallLen})}
@@ -606,7 +614,7 @@ function onWall(l,r,wn){if(!r)return null;const W=+l.W,L=+l.L;if(wn==='front'&&r
 function loftZE(l){const lo=l.loft;return lo&&lo.on?+l.L-Math.min(+lo.depth||0,+l.L-0.6):+l.L}
 function wallObs(l,wn){
   const W=+l.W,L=+l.L,H=+l.H;const lo=l.loft||{};const out=[];
-  if(wn==='front'){const dx=doorX(l,W);out.push({a0:dx-0.5,a1:dx+0.5,y0:0,y1:2.3,k:'door'})}
+  if(wn==='front'){const dx=doorX(l,W);const hw=doorHalf(l,W)+0.05;out.push({a0:dx-hw,a1:dx+hw,y0:0,y1:l.door==='shop'?Math.min(3,H):2.3,k:'door'})}
   const wr=wcRect(l);const iw=onWall(l,wr,wn);if(iw){const d=lo.on?Math.min(+lo.depth,L-0.6):0;const under=lo.on&&wr.back&&(wr.z1-wr.z0)<=d+0.01;const wh=under?lo.h-lo.t:Math.min(2.4,H);out.push({a0:iw[0],a1:iw[1],y0:0,y1:wh+0.1,k:'wc'})}
   const is=onWall(l,stairRect(l),wn);if(is)out.push({a0:is[0]-0.1,a1:is[1],y0:0,y1:lo.h+1.0,k:'stair'});
   return out;
@@ -802,7 +810,7 @@ function tabRooms(p){
   const counts={all:p.rooms.length,occ:p.rooms.filter(flt.occ).length,vac:p.rooms.filter(flt.vac).length,end:p.rooms.filter(flt.end).length,debt:p.rooms.filter(flt.debt).length};
   return`<div class="filters">${[['all','Tất cả'],['occ','Đang thuê'],['vac','Trống'],['end','Sắp trả'],['debt','Còn nợ']].map(([k,l])=>`<button class="${f===k?'on':''}" data-act="roomFilter" data-f="${k}">${l} · ${counts[k]}</button>`).join('')}</div>
   ${rooms.length?floors.map(fl=>`<div class="floor-h">${floors.length>1||fl>1?'Tầng '+fl:'Dãy phòng'}</div><div class="tiles">${rooms.filter(r=>r.floor===fl).map(r=>tile(p,r)).join('')}</div>`).join(''):`<p class="muted" style="padding:24px 0;text-align:center">Không có phòng nào trong mục này.</p>`}
-  <div class="btns" style="margin-top:18px"><button class="btn" data-act="addRooms">${ic('plus')}Thêm phòng</button><button class="btn" data-act="openLayout">${ic('cube')}Mẫu phòng 3D</button></div>`;
+  <div class="btns" style="margin-top:18px"><button class="btn" data-act="addRooms">${ic('plus')}Thêm phòng</button><button class="btn" data-act="openDesigns">${ic('cube')}Thiết kế 3D</button><button class="btn" data-act="openSite">${ic('building')}Sơ đồ dãy 3D</button></div>`;
 }
 function tile(p,r){
   const t=r.tenant;const d=endDays(t);const ad=S.settings.alertDays||30;const debt=t?tenantDebt(p,r):0;
@@ -853,7 +861,8 @@ function tabSettings(p){
   return`<div class="sec-h" style="margin-top:4px"><h3>${esc(p.name)}</h3></div><div class="list">
    ${li('editProp','building','Thông tin khu trọ & chủ trọ',esc(p.address||'Tên, địa chỉ, chủ trọ, hạn thanh toán'))}
    ${li('openPrices','tag','Bảng giá dịch vụ',`Điện ${num(pr.elec)}đ · ${pr.waterMode==='person'?`nước ${num(pr.waterPerson)}đ/người`:`nước máy ${num(pr.city)}đ${pr.well?` · giếng ${num(pr.well)}đ`:''}`}`)}
-   ${li('openLayout','cube','Mẫu phòng & mô hình 3D',`${f2(p.layout.W)} × ${f2(p.layout.L)} m · trần ${f2(p.layout.H)} m${p.layout.loft.on?` · gác ${f2(p.layout.loft.h)} m`:''}`)}
+   ${li('openDesigns','cube','Thiết kế phòng 3D',`Mẫu chung ${f2(p.layout.W)} × ${f2(p.layout.L)} m${p.designs.length?` · thêm ${p.designs.length} thiết kế`:''}`)}
+   ${li('openSite','building','Sơ đồ dãy trọ 3D',p.site.mode==='two'?`Hai dãy, hành lang ${f2(p.site.cw)} m`:`Một dãy, lối đi ${f2(p.site.cw)} m`)}
    ${li('openBank','bank','Tài khoản nhận tiền',bank&&p.bank.acct?`${bank[1]} · ${esc(p.bank.acct)}`:'Thêm để in mã QR chuyển khoản lên hóa đơn')}
    ${li('openRemind','bell','Nhắc trên điện thoại','Ngày chốt số, hạn thu tiền, hết hạn hợp đồng')}
   </div>
@@ -939,22 +948,24 @@ const SHEETS={
    foot:`<button class="btn" data-act="back">${fromPrices?'Để sau':'Hủy'}</button><button class="btn pri" data-act="doRecalc" ${selN?'':'disabled'}>${selN===rows.length?`Tính lại toàn khu (${selN})`:`Tính lại ${selN} phòng`}</button>`};
  },
  layout(sh){
-  const {pid,rid}=sh.params;const p=S.props[pid];const room=rid?p.rooms.find(r=>r.id===rid):null;const d=sh.draft;const l=d.l;
-  const useDef=rid&&d.useDefault;
-  const body=`${rid?`<div class="group">${tog('Dùng kích thước mẫu của khu','useDefault',d.useDefault,'Tắt để nhập kích thước riêng cho phòng '+esc(room.no))}</div>`:`<p class="small muted">Mẫu này áp dụng cho mọi phòng chưa có kích thước riêng. Mỗi phòng có thể chỉnh riêng trong trang chi tiết phòng.</p>`}
+  const {pid,rid,did}=sh.params;const p=S.props[pid];const room=rid?p.rooms.find(r=>r.id===rid):null;const d=sh.draft;const l=d.l;
+  const useDef=rid&&d.design!=='custom';const named=did&&did!=='default';
+  const body=`${rid?`<div class="group"><label class="fld"><span class="fl">Thiết kế của phòng ${esc(room.no)}</span><select data-ch="roomDesign">${[['default','Mẫu chung'],...p.designs.map(x=>[x.id,x.name]),['custom','Kích thước riêng cho phòng này']].map(([v,t])=>`<option value="${esc(v)}" ${v===d.design?'selected':''}>${esc(t)}</option>`).join('')}</select><span class="hint">${useDef?'Sửa thiết kế dùng chung ở mục Thiết kế 3D. Ở đây chỉ chỉnh máy lạnh riêng cho phòng.':'Chỉ phòng này dùng kích thước bên dưới.'}</span></label></div>`
+   :named?`<div class="group">${fld('Tên thiết kế','name',d.name,{full:1,ph:'VD: Kiot mặt tiền, Phòng có gác'})}</div>`
+   :`<p class="small muted">Mẫu chung dùng cho mọi phòng chưa chọn thiết kế khác. Tạo thêm thiết kế (vd. cho kiot) ở mục Thiết kế 3D.</p>`}
    <div class="stage-pin"><div class="stage" data-3d="draft">${stageOverlay()}${stageWarnBtn(sh)}</div></div>
    <div id="layout-stats">${statsHTML(draftLayout(sh))}</div>
    ${useDef?'':`<div class="group"><h4>${ic('door',18)}Kích thước phòng</h4><div class="fgrid" style="grid-template-columns:1fr 1fr 1fr">${fld('Rộng','l.W',l.W,{type:'number',sfx:'m'})}${fld('Dài','l.L',l.L,{type:'number',sfx:'m'})}${fld('Cao trần','l.H',l.H,{type:'number',sfx:'m'})}</div>
-    <div class="fld"><span class="fl">Cửa ra vào (nhìn từ ngoài vào)</span>${seg('l.door',l.door,[['left','Bên trái'],['center','Giữa'],['right','Bên phải']])}</div>${tog('Cửa sổ tầng dưới','l.win.on',l.win.on,'Tự tránh cửa ra vào, nhà vệ sinh, cầu thang và nâng lên trên bàn bếp')}${l.win.on?`<div class="fld"><span class="fl">Tường đặt cửa sổ (nhìn từ cửa vào)</span>${seg('l.win.wall',l.win.wall,[['left','Trái'],['back','Sau'],['right','Phải'],['front','Trước']])}</div>`:''}</div>
+    <div class="fld"><span class="fl">Cửa ra vào (nhìn từ ngoài vào)</span>${seg('l.door',l.door,[['left','Trái'],['center','Giữa'],['right','Phải'],['shop','Cửa cuốn']])}${l.door==='shop'?'<span class="hint">Cửa cuốn kiot rộng gần hết mặt tiền, cao tới 2,8 m.</span>':''}</div>${tog('Cửa sổ tầng dưới','l.win.on',l.win.on,'Tự tránh cửa ra vào, nhà vệ sinh, cầu thang và nâng lên trên bàn bếp')}${l.win.on?`<div class="fld"><span class="fl">Tường đặt cửa sổ (nhìn từ cửa vào)</span>${seg('l.win.wall',l.win.wall,[['left','Trái'],['back','Sau'],['right','Phải'],['front','Trước']])}</div>`:''}</div>
    <div class="group">${tog('Gác lửng','l.loft.on',l.loft.on,'Sàn gác đặt ở phía sau phòng')}${l.loft.on?`<div class="fgrid">${fld('Cao sàn gác','l.loft.h',l.loft.h,{type:'number',sfx:'m',hint:'Từ sàn nhà lên mặt sàn gác'})}${fld('Sâu gác','l.loft.depth',l.loft.depth,{type:'number',sfx:'m',hint:'Tính từ tường sau ra'})}${fld('Dày sàn gác','l.loft.t',l.loft.t,{type:'number',sfx:'m'})}</div>${tog('Cửa sổ trên gác','l.loft.win.on',l.loft.win.on,'Thoáng và sáng cho chỗ ngủ trên gác')}${l.loft.win.on?`<div class="fld"><span class="fl">Tường đặt cửa sổ gác</span>${seg('l.loft.win.wall',l.loft.win.wall,[['left','Trái'],['back','Sau'],['right','Phải']])}</div>`:''}`:''}</div>
    <div class="group">${tog('Nhà vệ sinh trong phòng','l.wc.on',l.wc.on)}${l.wc.on?`<div class="fgrid">${fld('Rộng','l.wc.w',l.wc.w,{type:'number',sfx:'m'})}${fld('Sâu','l.wc.d',l.wc.d,{type:'number',sfx:'m'})}${sel('Vị trí','l.wc.corner',l.wc.corner,[['back-right','Góc trong, bên phải'],['back-left','Góc trong, bên trái'],['front-right','Góc ngoài, bên phải'],['front-left','Góc ngoài, bên trái']],{full:1,rr:1})}</div><div class="fld"><span class="fl">Hướng cửa nhà vệ sinh</span>${seg('l.wc.doorDir',l.wc.doorDir,l.wc.corner.startsWith('back')?[['long','Quay ra cửa chính'],['side','Quay ngang ra giữa phòng']]:[['long','Quay vào trong phòng'],['side','Quay ngang ra giữa phòng']])}</div>`:''}</div>
    ${l.loft.on?`<div class="group">${tog('Cầu thang lên gác','l.stair.on',l.stair.on,'Số bậc tự tính theo cao độ gác, mỗi bậc khoảng 20 cm')}${l.stair.on?`<div class="fld"><span class="fl">Đặt dọc tường</span>${seg('l.stair.side',l.stair.side,[['left','Bên trái'],['right','Bên phải']])}</div><div class="fgrid">${fld('Bề rộng thang','l.stair.w',l.stair.w,{type:'number',sfx:'m'})}${fld('Mặt bậc','l.stair.tread',l.stair.tread,{type:'number',sfx:'m',hint:'Thang sắt gác lửng thường 0,2–0,25 m'})}</div>${tog('Có lan can tay vịn','l.stair.rail',l.stair.rail,'Tay vịn phía ngoài cầu thang')}`:''}</div>`:''}
    <div class="group">${tog('Bàn bếp nấu ăn','l.kitchen.on',l.kitchen.on,'Có chỗ rửa và bếp nấu')}${l.kitchen.on?`<div class="fgrid" style="grid-template-columns:1fr 1fr 1fr">${fld('Dài','l.kitchen.len',l.kitchen.len,{type:'number',sfx:'m'})}${fld('Rộng','l.kitchen.dep',l.kitchen.dep,{type:'number',sfx:'m'})}${fld('Cao','l.kitchen.h',l.kitchen.h,{type:'number',sfx:'m'})}</div>
     <div class="fld"><span class="fl">Đặt sát tường (nhìn từ cửa vào)</span>${seg('l.kitchen.wall',l.kitchen.wall,[['left','Trái'],['back','Sau'],['right','Phải'],['front','Trước']])}</div>
     ${fld('Cách đầu tường','l.kitchen.off',l.kitchen.off,{type:'number',sfx:'m',ph:'Tự động',hint:l.kitchen.wall==='left'||l.kitchen.wall==='right'?'Tính từ tường có cửa ra vào. Để trống để app tự tìm chỗ không vướng.':'Tính từ tường bên trái. Để trống để app tự tìm chỗ không vướng.'})}`:''}</div>`}
-   ${acGroup(useDef?'ac':'l.ac',useDef?d.ac:l.ac,useDef?S.props[pid].layout:l,!rid)}
-   ${rid?'':`<div class="group">${tog('Áp dụng cho tất cả phòng','applyAll',d.applyAll,'Xóa kích thước riêng của các phòng, dùng chung mẫu này')}</div>`}`;
-  return{title:rid?`Kích thước phòng ${esc(room.no)}`:'Mẫu phòng 3D',body,foot:`<button class="btn" data-act="back">Hủy</button><button class="btn pri" data-act="saveLayout">Lưu kích thước</button>`};
+   ${acGroup(useDef?'ac':'l.ac',useDef?d.ac:l.ac,useDef?designLayout(p,d.design):l,!rid)}
+   ${rid?'':designRoomsHTML(p,did,d)}${named&&!sh.params.isNew?`<button class="btn danger block" data-act="delDesign" style="margin-top:4px">${ic('trash',18)}Xóa thiết kế này</button>`:''}`;
+  return{title:rid?`Thiết kế phòng ${esc(room.no)}`:named?(sh.params.isNew?'Thiết kế mới':esc(d.name||'Thiết kế')):'Mẫu chung',body,foot:`<button class="btn" data-act="back">Hủy</button><button class="btn pri" data-act="saveLayout">${rid?'Lưu':'Lưu thiết kế'}</button>`};
  },
  room(sh){
   const p=P();const room=p.rooms.find(r=>r.id===sh.params.rid);if(!room)return{title:'Phòng',body:'<p class="muted">Phòng này đã bị xóa.</p>'};
@@ -969,8 +980,8 @@ const SHEETS={
     <div class="btns"><button class="btn sm" data-act="openDoc" data-kind="contract">${ic('file',16)}Hợp đồng</button><button class="btn sm" data-act="openDoc" data-kind="ct01">${ic('file',16)}Tờ khai tạm trú</button><button class="btn sm" data-act="openDoc" data-kind="handover">${ic('file',16)}Bàn giao</button></div>
     <div class="btns"><button class="btn" data-act="openPortal">${ic('key',18)}Trang người thuê${t.portal?' · đang bật':''}</button><button class="btn" data-act="checkout">${ic('out',18)}Trả phòng</button></div></div>`;
   }else body+=`<div class="card" style="text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center;padding:22px"><p class="muted">Phòng đang trống.</p><button class="btn pri" data-act="addTenant">${ic('plus')}Thêm người thuê</button></div>`;
-  body+=`<div class="sec-h" style="margin:8px 0 0"><h3>Mô hình 3D</h3><span class="spacer"></span><button class="btn sm soft" data-act="openLayout" data-rid="${room.id}">${ic('edit',16)}Chỉnh kích thước</button></div>
-   <div class="stage" data-3d="room" data-rid="${room.id}">${stageOverlay()}</div>${statsHTML(l,true)}<p class="small muted">${room.layout?'Phòng này dùng kích thước riêng.':'Đang dùng kích thước mẫu của khu.'}</p>`;
+  body+=`<div class="sec-h" style="margin:8px 0 0"><h3>Mô hình 3D</h3><span class="spacer"></span><button class="btn sm soft" data-act="openLayout" data-rid="${room.id}">${ic('edit',16)}Đổi thiết kế</button></div>
+   <div class="stage" data-3d="room" data-rid="${room.id}">${stageOverlay()}</div>${statsHTML(l,true)}<p class="small muted">${room.layout?'Phòng này dùng kích thước riêng.':`Đang dùng thiết kế “${esc(designName(p,room.design))}”.`}</p>`;
   body+=`<div class="sec-h" style="margin:8px 0 0"><h3>Hóa đơn</h3></div>${rows.length?`<div class="list">${rows.slice(0,12).map(x=>{const c=rowCalc(p.id,x.m,x.k);return`<button class="li" data-act="openBill" data-m="${x.m}" data-key="${x.k}"><span class="grow"><b>${monthLabel(x.m)}</b><span>${esc(x.r.tenantName)}</span></span><span style="text-align:right"><b class="tnum" style="display:block">${c.complete?money(c.total):'—'}</b>${statusChip(c)}</span></button>`}).join('')}</div>`:'<p class="small muted">Chưa có hóa đơn nào.</p>'}`;
   if(room.history&&room.history.length)body+=`<div class="sec-h" style="margin:8px 0 0"><h3>Người thuê trước</h3></div><div class="list">${room.history.map(h=>`<div class="li"><span class="grow"><b>${esc(h.name)}</b><span>${dmy(h.moveIn)} → ${dmy(h.moveOut)} · ${h.people||1} người</span></span>${h.finalE!=null?`<span class="small muted mono">${num(h.finalE)} kWh</span>`:''}</div>`).join('')}</div>`;
   body+=`<div class="btns" style="margin-top:8px"><button class="btn" data-act="editRoom">${ic('edit',18)}Sửa phòng</button>${t?'':`<button class="btn danger" data-act="delRoom">${ic('trash',18)}Xóa phòng</button>`}</div>`;
@@ -1047,10 +1058,24 @@ function acGroup(path,ac,lay,isTpl){
    <div class="fld"><span class="fl">Tường treo máy (nhìn từ cửa vào)</span>${seg(path+'.wall',lo&&ac.level==='loft'&&ac.wall==='front'?'back':ac.wall,walls)}</div>
    <label class="fld"><span class="fl">Công suất</span><select id="${fid(path+'.hp')}" data-draft="${path}.hp" data-type="num">${[[1,'1 HP (9.000 BTU)'],[1.5,'1,5 HP (12.000 BTU)'],[2,'2 HP (18.000 BTU)'],[2.5,'2,5 HP (24.000 BTU)']].map(([v,t])=>`<option value="${v}" ${+ac.hp===v?'selected':''}>${t}</option>`).join('')}</select></label>`:''}</div>`;
 }
-function draftLayout(sh){const p=S.props[sh.params.pid];const d=sh.draft;if(sh.params.rid&&d.useDefault){const l=normLayout(clone(p.layout));l.ac=sanitizeAc(d.ac);return l}return sanitizeLayout(d.l)}
+function setRoomDesign(v){const sh=topSheet();if(!sh||sh.type!=='layout')return;const d=sh.draft;const p=S.props[sh.params.pid];
+  if(v==='custom'){if(d.design!=='custom'){d.l=normLayout(clone(designLayout(p,d.design)));d.l.ac=clone(d.ac)}}
+  else d.ac=d.design==='custom'?clone(d.l.ac):clone(designLayout(p,v).ac);
+  d.design=v;render()}
+function draftLayout(sh){const p=S.props[sh.params.pid];const d=sh.draft;if(sh.params.rid&&d.design!=='custom'){const l=normLayout(clone(designLayout(p,d.design)));l.ac=sanitizeAc(d.ac);return l}return sanitizeLayout(d.l)}
+// Chọn nhiều phòng dùng chung thiết kế đang sửa.
+function designRoomsHTML(p,did,d){
+  const rooms=p.rooms.slice().sort(byNo);if(!rooms.length)return'';const isDef=did==='default';
+  const n=rooms.filter(r=>d.sel[r.id]).length;
+  const tag=r=>r.layout?'Kích thước riêng':designName(p,r.design);
+  return`<div class="group"><h4>${ic('grid',18)}Phòng dùng thiết kế này <span class="muted small" style="font-weight:500">${n}/${rooms.length}</span></h4>
+   <p class="small muted" style="margin:0 0 6px">${isDef?'Đánh dấu để đưa phòng về mẫu chung. Muốn phòng dùng thiết kế khác, chọn phòng đó trong thiết kế khác.':'Đánh dấu các phòng dùng chung thiết kế này. Bỏ đánh dấu thì phòng quay về mẫu chung.'} Phòng có kích thước riêng sẽ bỏ kích thước riêng.</p>
+   ${isDef?'':`<div class="row" style="margin-bottom:6px"><button class="btn sm" data-act="designSelAll" data-v="1">Chọn tất cả</button><button class="btn sm" data-act="designSelAll" data-v="0">Bỏ chọn</button></div>`}
+   <div class="list">${rooms.map(r=>{const lock=isDef&&roomUses(p,r,'default');return`<label class="ck"><input type="checkbox" data-act="designSel" data-rid="${r.id}" ${d.sel[r.id]?'checked':''} ${lock?'disabled':''}><span class="plate">${esc(r.no)}</span><span class="grow"><b style="display:block;font-weight:600">Tầng ${r.floor}${(p.site.roles[r.id]||'').startsWith('k')?' · kiot':''}</b><span class="small muted">Đang dùng: ${esc(tag(r))}</span></span></label>`}).join('')}</div></div>`;
+}
 function stageWarnBtn(sh){const l=draftLayout(sh);const n=layoutInfo(l).warns.length;return`<button class="stage-warn${n?' has':''}" id="stage-warn" data-act="toWarns">${warnBadge(l)}</button>`}
 function warnBadge(l){const n=layoutInfo(l).warns.length;return n?`${ic('alert',14)}${n} lưu ý`:`${ic('check',14)}Hợp lý`}
-function stageOverlay(){return`<div class="views"><button data-act="view3d" data-v="iso">Tổng thể</button><button data-act="view3d" data-v="front">Từ cửa</button><button data-act="view3d" data-v="top">Từ trên</button></div><span class="tip">Kéo để xoay · chụm để phóng</span>`}
+function stageOverlay(site){return`<div class="views"><button data-act="view3d" data-v="iso">Tổng thể</button><button data-act="view3d" data-v="front">${site?'Từ đường':'Từ cửa'}</button><button data-act="view3d" data-v="top">Từ trên</button></div><span class="tip">Kéo để xoay · chụm để phóng</span>`}
 function statsHTML(l,compact){
   const o=layoutInfo(l);
   const cells=[['Diện tích sàn',f2(o.area)+' m²'],['Diện tích gác',l.loft.on?f2(o.loftA)+' m²':'—'],['Tổng sử dụng',f2(o.area+o.loftA)+' m²'],['Trên gác',o.above!=null?f2(o.above)+' m':'—'],['Dưới gác',o.below!=null?f2(o.below)+' m':'—'],['Cầu thang',o.steps?`${o.steps} bậc × ${Math.round(o.rise*100)} cm`:'—']];
@@ -1080,7 +1105,7 @@ const A={
   if(sh.params.pid){const p=S.props[sh.params.pid];Object.assign(p,{name:d.name.trim(),address:d.address||'',dueDay:clamp(d.dueDay||5,1,28),prorate:!!d.prorate,carryDebt:!!d.carryDebt,invoiceNote:d.invoiceNote||'',readDay:clamp(d.readDay||1,1,28),owner:{name:(d.owner.name||'').trim(),phone:d.owner.phone||'',cccd:d.owner.cccd||'',address:d.owner.address||''},equipment:d.equipment||'',terms:d.terms||''});persist('p',p.id);pop();toast('Đã lưu');return}
   const p=newProp(d.name.trim(),d.address||'');Object.assign(p.prices,{elec:d.elec??p.prices.elec,city:d.city||0,well:d.well||0,trash:d.trash||0,wifi:d.wifi||0});
   p.rooms=genNos(d).map(([n,f])=>newRoom(n,f,d.rent||0));S.props[p.id]=p;S.settings.activePid=p.id;persist('p',p.id);persist('s');
-  ui.sheets=[];ui.tab='rooms';push('layout',{pid:p.id},{l:clone(p.layout),applyAll:false});toast(`Đã tạo ${p.rooms.length} phòng. Nhập kích thước mẫu phòng.`);
+  ui.sheets=[];ui.tab='rooms';const sel={};p.rooms.forEach(r=>{if(roomUses(p,r,'default'))sel[r.id]=true});push('layout',{pid:p.id,did:'default'},{l:clone(p.layout),name:'',sel});toast(`Đã tạo ${p.rooms.length} phòng. Nhập kích thước mẫu phòng.`);
  },
  deleteProp(){const p=P();ask('Xóa '+esc(p.name)+'?',`Toàn bộ ${p.rooms.length} phòng, người thuê và hóa đơn của khu này sẽ bị xóa vĩnh viễn. Nên sao lưu trước khi xóa.`,'Xóa khu trọ',()=>{for(const k of Object.keys(S.bills))if(S.bills[k].pid===p.id){delete S.bills[k];persistDel('b',k)}delete S.props[p.id];persistDel('p',p.id);fixActive();persist('s');ui.sheets=[];ui.tab='home';render();toast('Đã xóa khu trọ')},true)},
  openBank(){const p=P();push('bank',{},clone(p.bank))},
@@ -1102,14 +1127,29 @@ const A={
  doRecalc(){const sh=topSheet();const {pid,month}=sh.params;let n=0,diff=0;
   for(const [k] of rowsSorted(pid,month))if(sh.draft.sel[k]){const o=rowCalc(pid,month,k);recalcRow(pid,month,k);touch();const c=rowCalc(pid,month,k);if(o.complete&&c.complete)diff+=c.total-o.total;n++}
   persist('b',billKey(pid,month));pop();toast(`Đã tính lại ${n} phòng · chênh lệch ${diff>0?'+':''}${money(diff)}`)},
- openLayout(el){const p=P();const rid=el&&el.dataset.rid;const room=rid?p.rooms.find(r=>r.id===rid):null;const l=normLayout(clone(room&&room.layout||p.layout));if(room&&!room.layout&&room.ac)l.ac=clone(room.ac);push('layout',{pid:p.id,rid:rid||null},{l,ac:clone(l.ac),useDefault:rid?!room.layout:false,applyAll:false})},
+ openLayout(el){const p=P();const rid=el&&el.dataset.rid;const did=(el&&el.dataset.did)||'default';
+  if(rid){const room=p.rooms.find(r=>r.id===rid);const des=room.layout?'custom':(designOf(p,room.design)?room.design:'default');const l=normLayout(clone(room.layout||designLayout(p,des)));if(!room.layout&&room.ac)l.ac=clone(room.ac);push('layout',{pid:p.id,rid},{l,ac:clone(l.ac),design:des});return}
+  const dz=designOf(p,did);const sel={};p.rooms.forEach(r=>{if(roomUses(p,r,did))sel[r.id]=true});push('layout',{pid:p.id,did},{l:normLayout(clone(dz?dz.layout:p.layout)),name:dz?dz.name:'',sel})},
+ newDesign(){const p=P();const sel={};push('layout',{pid:p.id,did:'d'+uid6(),isNew:1},{l:normLayout(clone(p.layout)),name:`Thiết kế ${p.designs.length+2}`,sel})},
+ openDesigns(){push('designs',{pid:P().id})},
+ designSel(el){topSheet().draft.sel[el.dataset.rid]=el.checked;const h=document.querySelector('.sheet .group h4 .muted');if(h){const d=topSheet().draft;const p=S.props[topSheet().params.pid];h.textContent=p.rooms.filter(r=>d.sel[r.id]).length+'/'+p.rooms.length}},
+ designSelAll(el){const sh=topSheet();const p=S.props[sh.params.pid];p.rooms.forEach(r=>{sh.draft.sel[r.id]=el.dataset.v==='1'});render()},
+ delDesign(){const sh=topSheet();const p=S.props[sh.params.pid];const did=sh.params.did;const dz=designOf(p,did);if(!dz){pop();return}const n=p.rooms.filter(r=>r.design===did).length;
+  ask('Xóa thiết kế?',`${esc(dz.name)}${n?` đang dùng cho ${n} phòng. Các phòng này sẽ quay về mẫu chung.`:''}`,'Xóa',()=>{p.rooms.forEach(r=>{if(r.design===did)r.design=null});p.designs=p.designs.filter(x=>x.id!==did);persist('p',p.id);pop();toast('Đã xóa thiết kế')},true)},
  saveLayout(){
-  const sh=topSheet();const d=sh.draft;const p=S.props[sh.params.pid];const l=sanitizeLayout(d.l);
-  if(sh.params.rid){const room=p.rooms.find(r=>r.id===sh.params.rid);if(d.useDefault){room.layout=null;const a=sanitizeAc(d.ac);room.ac=JSON.stringify(a)===JSON.stringify(sanitizeAc(p.layout.ac))?null:a}else{room.layout=l;room.ac=null}}
-  else{p.layout=l;if(d.applyAll)p.rooms.forEach(r=>r.layout=null)}
-  persist('p',p.id);pop();toast('Đã lưu kích thước');
+  const sh=topSheet();const d=sh.draft;const p=S.props[sh.params.pid];const {rid,did}=sh.params;
+  if(rid){const room=p.rooms.find(r=>r.id===rid);
+   if(d.design==='custom'){room.layout=sanitizeLayout(d.l);room.ac=null;room.design=null}
+   else{room.layout=null;room.design=d.design==='default'?null:d.design;const a=sanitizeAc(d.ac);room.ac=JSON.stringify(a)===JSON.stringify(sanitizeAc(designLayout(p,d.design).ac))?null:a}
+   persist('p',p.id);pop();toast('Đã lưu thiết kế phòng '+room.no);return}
+  const l=sanitizeLayout(d.l);let name='Mẫu chung';
+  if(did==='default')p.layout=l;
+  else{name=String(d.name||'').trim();if(!name){toast('Đặt tên cho thiết kế');focusId('f-name');return}
+   const dz=designOf(p,did);if(dz){dz.name=name;dz.layout=l}else p.designs.push({id:did,name,layout:l})}
+  let n=0;for(const r of p.rooms){const was=roomUses(p,r,did);if(d.sel[r.id]){if(!was){r.layout=null;r.ac=null;r.design=did==='default'?null:did}n++}else if(was&&did!=='default')r.design=null}
+  persist('p',p.id);pop();toast(`Đã lưu ${name}${n?` cho ${n} phòng`:''}`);
  },
- seg(el){const sh=topSheet();if(/ac\.level$/.test(el.dataset.path)&&el.dataset.v==='loft'){const wp=el.dataset.path.replace(/level$/,'wall');if(getPath(sh.draft,wp)==='front')setPath(sh.draft,wp,'back')}if(el.dataset.path==='l.kitchen.wall'&&getPath(sh.draft,'l.kitchen.wall')!==el.dataset.v)setPath(sh.draft,'l.kitchen.off',null);setPath(sh.draft,el.dataset.path,el.dataset.v);render()},
+ seg(el){const sh=topSheet();if(/ac\.level$/.test(el.dataset.path)&&el.dataset.v==='loft'){const wp=el.dataset.path.replace(/level$/,'wall');if(getPath(sh.draft,wp)==='front')setPath(sh.draft,wp,'back')}if(el.dataset.path==='l.kitchen.wall'&&getPath(sh.draft,'l.kitchen.wall')!==el.dataset.v)setPath(sh.draft,'l.kitchen.off',null);if(el.dataset.path==='l.door'&&el.dataset.v==='shop'&&getPath(sh.draft,'l.win.wall')==='front')setPath(sh.draft,'l.win.wall','back');setPath(sh.draft,el.dataset.path,el.dataset.v);render()},
  view3d(el){setView(el.dataset.v)},
  toWarns(){const e=document.getElementById('layout-stats');if(e)e.scrollIntoView({behavior:'smooth',block:'center'})},
  roomFilter(el){ui.roomFilter=el.dataset.f;render()},
@@ -1182,7 +1222,7 @@ function sanitizeAc(a){a=a||{};return{on:!!a.on,wall:WALLN[a.wall]?a.wall:'right
 function sanitizeLayout(l){const n=(v,a,b,d)=>{v=toNum(v);return v==null?d:clamp(v,a,b)};
   const W=n(l.W,1,15,3.5),L=n(l.L,1.5,25,6),H=n(l.H,2,8,4);
   l=normLayout(clone(l));const k=l.kitchen;const side=k.wall==='left'||k.wall==='right';const kl=n(k.len,0.4,side?L:W,1.6);const off=toNum(k.off);
-  return{W,L,H,door:l.door||'right',win:{on:!!l.win.on,wall:WALLN[l.win.wall]?l.win.wall:'front'},ac:sanitizeAc(l.ac),loft:{on:!!l.loft.on,h:n(l.loft.h,1,H-0.2,2.4),depth:n(l.loft.depth,0.5,L,2.8),t:n(l.loft.t,0.03,0.4,0.1),win:{on:!!l.loft.win.on,wall:['left','right','back'].includes(l.loft.win.wall)?l.loft.win.wall:'back'}},wc:{on:!!l.wc.on,w:n(l.wc.w,0.6,W,1.4),d:n(l.wc.d,0.6,L,1.6),corner:l.wc.corner||'back-right',doorDir:l.wc.doorDir==='side'?'side':'long'},stair:{on:!!l.stair.on,side:l.stair.side||'left',w:n(l.stair.w,0.4,2,0.7),tread:n(l.stair.tread,0.15,0.35,0.22),rail:l.stair.rail!==false},
+  return{W,L,H,door:['left','center','right','shop'].includes(l.door)?l.door:'right',win:{on:!!l.win.on,wall:WALLN[l.win.wall]?l.win.wall:'front'},ac:sanitizeAc(l.ac),loft:{on:!!l.loft.on,h:n(l.loft.h,1,H-0.2,2.4),depth:n(l.loft.depth,0.5,L,2.8),t:n(l.loft.t,0.03,0.4,0.1),win:{on:!!l.loft.win.on,wall:['left','right','back'].includes(l.loft.win.wall)?l.loft.win.wall:'back'}},wc:{on:!!l.wc.on,w:n(l.wc.w,0.6,W,1.4),d:n(l.wc.d,0.6,L,1.6),corner:l.wc.corner||'back-right',doorDir:l.wc.doorDir==='side'?'side':'long'},stair:{on:!!l.stair.on,side:l.stair.side||'left',w:n(l.stair.w,0.4,2,0.7),tread:n(l.stair.tread,0.15,0.35,0.22),rail:l.stair.rail!==false},
     kitchen:{on:!!k.on,len:kl,dep:n(k.dep,0.3,1.2,0.6),h:n(k.h,0.5,1.2,0.85),wall:['left','right','back','front'].includes(k.wall)?k.wall:'back',off:off==null?null:clamp(off,0,Math.max(0,(side?L:W)-kl))}}}
 function focusId(id){const e=document.getElementById(id);if(e)e.focus()}
 
@@ -1204,7 +1244,8 @@ function bm(fn,noLive){const {pid,month,key}=topSheet().params;const r=rowOf(pid
 document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el)return;const f=A[el.dataset.act];if(!f)return;if(el.tagName!=='INPUT')e.preventDefault();f(el,e)});
 document.addEventListener('input',e=>{const el=e.target;
   if(el.dataset.draft!=null){const sh=topSheet();if(!sh||!sh.draft)return;const t=el.dataset.type;setPath(sh.draft,el.dataset.draft,t==='num'?toNum(el.value):t==='bool'?el.checked:el.value);
-    if(sh.type==='layout'){if(el.dataset.draft==='useDefault'){if(el.checked)sh.draft.ac=clone(sh.draft.l.ac);else sh.draft.l.ac=clone(sh.draft.ac)}update3DFromDraft(sh)}
+    if(sh.type==='layout')update3DFromDraft(sh);
+    if(sh.type==='site'){updateSiteFromDraft();return}
     if(sh.type==='meter'||sh.type==='meterRun'){updateMeterInfo(sh);return}
     if(el.dataset.rr){render();return}
     if(sh.type==='propForm'||sh.type==='addRooms'||sh.type==='roomForm'){const h=el.closest('.fld')&&el.closest('.fld').querySelector('.hint');if(h&&(el.dataset.draft==='rent'))h.textContent=toNum(el.value)?money(toNum(el.value))+' / tháng':'';if(sh.type!=='roomForm')softRefreshHints(sh)}
@@ -1213,6 +1254,8 @@ document.addEventListener('input',e=>{const el=e.target;
 document.addEventListener('change',e=>{const el=e.target;
   if(el.dataset.draft!=null&&el.tagName==='SELECT'&&!el.dataset.rr){const sh=topSheet();if(sh&&sh.draft){setPath(sh.draft,el.dataset.draft,el.value);if(sh.type==='layout')update3DFromDraft(sh)}}
   if(el.dataset.ch==='restore')restoreFile(el);
+  if(el.dataset.ch==='roomDesign')setRoomDesign(el.value);
+  if(el.dataset.ch==='siteRole'){const sh=topSheet();if(sh&&sh.type==='site'){sh.draft.roles[el.dataset.rid]=el.value;updateSiteFromDraft()}}
   if(el.dataset.ch==='meterPhoto')handleMeterPhoto(el);
   if(el.dataset.ch==='runPhoto')runAddPhotos(el);
   if(el.dataset.ch==='runTarget')runSetTarget(el.value)});
@@ -1373,11 +1416,12 @@ const R3={renderer:null,scene:null,camera:null,group:null,el:null,walls:[],theta
 async function mount3D(el){
   try{await loadScript(URLS.three)}catch(e){el.innerHTML='<p class="muted small" style="padding:16px">Không tải được thư viện 3D. Kiểm tra kết nối mạng rồi mở lại.</p>';return}
   if(!document.body.contains(el))return;
-  const l=layoutForStage(el);if(!l)return;
+  const site=el.dataset['3d']==='site';const sh=topSheet();
+  const l=site?null:layoutForStage(el);if(!site&&!l)return;if(site&&(!sh||sh.type!=='site'))return;
   if(!R3.renderer)threeInit();
   el.appendChild(R3.renderer.domElement);R3.el=el;
   const key=(el.dataset['3d'])+(el.dataset.rid||'');const fresh=key!==R3.key;R3.key=key;
-  build3D(l,fresh);R3.w=0;loop3D();
+  if(site)buildSite(S.props[sh.params.pid],sh.draft,fresh);else build3D(l,fresh);R3.w=0;loop3D();
 }
 function layoutForStage(el){const sh=topSheet();if(el.dataset['3d']==='draft'&&sh&&sh.type==='layout'){return draftLayout(sh)}const p=P();const room=p.rooms.find(r=>r.id===el.dataset.rid);return room?roomLayout(p,room):null}
 let u3T=null;
@@ -1419,14 +1463,22 @@ function loop3D(){
 }
 function disposeGroup(g){g.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>{if(m.map)m.map.dispose();m.dispose()})}})}
 function build3D(l0,fresh){
+  const T=THREE;if(R3.group){R3.scene.remove(R3.group);disposeGroup(R3.group)}
+  const walls=[];const g=roomGroup(l0,walls,true);R3.group=g;R3.walls=walls;R3.scene.add(g);
+  const W=l0.W,L=l0.L,H=l0.H;
+  R3.target.set(W/2,Math.min(H*0.36,1.5),L/2);R3.span=Math.max(W,L,H);R3.minR=R3.span*0.5;R3.maxR=R3.span*5;
+  if(fresh){R3.theta=-2.3;R3.phi=1.02;R3.radius=R3.span*2.1}
+  R3.dirty=true;
+}
+// Một phòng trong hệ tọa độ riêng: sàn x∈[0,W], z∈[0,L], cửa ra vào ở tường z=0. full=false: bỏ nhãn, đường kích thước (dùng trong sơ đồ dãy).
+function roomGroup(l0,walls,full){
   // three.js looks down +z from the door, so +x shows on the viewer's left: mirror left/right so "bên phải" means the right as seen from the doorway
   const sw_=v=>v==='left'?'right':v==='right'?'left':v;const l=clone(l0);l.door=sw_(l.door);l.stair.side=sw_(l.stair.side);l.wc.corner=l.wc.corner.replace(/left|right/,m=>sw_(m));
-  const T=THREE;if(R3.group){R3.scene.remove(R3.group);disposeGroup(R3.group)}
-  const g=new T.Group();R3.group=g;R3.walls=[];
+  const T=THREE;const g=new T.Group();
   const W=l.W,L=l.L,H=l.H,TW=0.1;const lo=l.loft,wc=l.wc,st=l.stair;const d=lo.on?Math.min(lo.depth,L-0.6):0;const zE=L-d;
   const M=(c,o={})=>new T.MeshLambertMaterial(Object.assign({color:c},o));
   const box=(x0,y0,z0,x1,y1,z1,mat,parent=g)=>{const sx=Math.abs(x1-x0),sy=Math.abs(y1-y0),sz=Math.abs(z1-z0);if(sx<0.001||sy<0.001||sz<0.001)return null;const m=new T.Mesh(new T.BoxGeometry(sx,sy,sz),mat);m.position.set((x0+x1)/2,(y0+y1)/2,(z0+z1)/2);parent.add(m);return m};
-  const wall=(normal,center,color=0xEEF0EB)=>{const mat=M(color);const w={mat,normal:new T.Vector3(...normal),center:new T.Vector3(...center)};R3.walls.push(w);return w};
+  const wall=(normal,center,color=0xEEF0EB)=>{const mat=M(color);const w={mat,normal:new T.Vector3(...normal),center:new T.Vector3(...center)};walls.push(w);return w};
   // floor: 60x60 tiles
   const tc=document.createElement('canvas');tc.width=tc.height=128;const tx=tc.getContext('2d');tx.fillStyle='#DDD0B9';tx.fillRect(0,0,128,128);tx.strokeStyle='#C2B091';tx.lineWidth=3;tx.strokeRect(1.5,1.5,125,125);
   const tex=new T.CanvasTexture(tc);tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.repeat.set(W/0.6,L/0.6);tex.encoding=T.sRGBEncoding;
@@ -1435,25 +1487,26 @@ function build3D(l0,fresh){
   const wb2=(wn,a0,a1,y0,y1,d0,d1,mat)=>wn==='back'?box(W-a1,y0,L+d0,W-a0,y1,L+d1,mat):wn==='front'?box(W-a1,y0,-d1,W-a0,y1,-d0,mat):wn==='left'?box(W+d0,y0,a0,W+d1,y1,a1,mat):box(-d1,y0,a0,-d0,y1,a1,mat);
   const wpos=(wn,a,y,d)=>wn==='back'?new T.Vector3(W-a,y,L+d):wn==='front'?new T.Vector3(W-a,y,-d):wn==='left'?new T.Vector3(W+d,y,a):new T.Vector3(-d,y,a);
   const WALLS={back:wall([0,0,1],[W/2,H/2,L]),front:wall([0,0,-1],[W/2,H/2,0]),left:wall([1,0,0],[W,H/2,L/2]),right:wall([-1,0,0],[0,H/2,L/2])};
-  const holes={back:[],front:[],left:[],right:[]};const dxU=doorX(l0,W);const dw=0.9,dh=Math.min(2.2,H-0.2);holes.front.push({a0:dxU-dw/2,a1:dxU+dw/2,y0:0,y1:dh,door:1});
+  const holes={back:[],front:[],left:[],right:[]};const dxU=doorX(l0,W);const shop=l0.door==='shop';const dw=doorHalf(l0,W)*2,dh=shop?Math.min(2.8,H-0.3):Math.min(2.2,H-0.2);holes.front.push({a0:dxU-dw/2,a1:dxU+dw/2,y0:0,y1:dh,door:1});
   for(const w of [groundWin(l0),loftWin(l0)])if(w&&!w.fail)holes[w.wall].push(w);
   const glass=new T.MeshLambertMaterial({color:0x9CC9E0,transparent:true,opacity:0.45});const fr=M(0x55606A);
   for(const wn of ['back','front','left','right']){const len=wn==='front'||wn==='back'?W:L;const hs=holes[wn];const ys=[...new Set([0,H,...hs.flatMap(h=>[h.y0,h.y1])])].sort((a,b)=>a-b);
     for(let i=0;i<ys.length-1;i++){const ya=ys[i],yb=ys[i+1];if(yb-ya<0.001)continue;const act=hs.filter(h=>h.y0<=ya+1e-6&&h.y1>=yb-1e-6).sort((a,b)=>a.a0-b.a0);let sa=-TW;for(const h of act){if(h.a0>sa)wb2(wn,sa,h.a0,ya,yb,0,TW,WALLS[wn].mat);sa=Math.max(sa,h.a1)}if(sa<len+TW)wb2(wn,sa,len+TW,ya,yb,0,TW,WALLS[wn].mat)}
     for(const h of hs){if(h.door)continue;wb2(wn,h.a0,h.a1,h.y0,h.y1,0.04,0.06,glass);wb2(wn,h.a0,h.a1,h.y0,h.y0+0.04,-0.02,0.08,fr);wb2(wn,h.a0,h.a1,h.y1-0.04,h.y1,0.03,0.07,fr);const nb=Math.max(2,Math.round((h.a1-h.a0)/0.3));for(let k=0;k<=nb;k++){const aa=h.a0+k*((h.a1-h.a0)/nb);wb2(wn,aa-0.012,aa+0.012,h.y0,h.y1,0.04,0.06,fr)}}}
   // door frame
-  const dx=W-dxU;const wood=M(0x7A5232);box(dx-dw/2-0.05,0,-TW-0.02,dx-dw/2,dh+0.05,0.02,wood);box(dx+dw/2,0,-TW-0.02,dx+dw/2+0.05,dh+0.05,0.02,wood);box(dx-dw/2-0.05,dh,-TW-0.02,dx+dw/2+0.05,dh+0.05,0.02,wood);
+  const dx=W-dxU;const wood=M(shop?0x6B7378:0x7A5232);
+  // cửa cuốn kiot: hộp cuốn phía trên và cửa kéo lên một phần
+  if(shop){box(dx-dw/2-0.05,dh,-TW-0.18,dx+dw/2+0.05,dh+0.25,-TW,M(0x8C969B));box(dx-dw/2,dh-0.5,-TW-0.06,dx+dw/2,dh,-TW-0.03,M(0xB4BCC0));for(let yy=dh-0.48;yy<dh;yy+=0.08)box(dx-dw/2,yy,-TW-0.07,dx+dw/2,yy+0.01,-TW-0.06,M(0x8C969B))}
+  box(dx-dw/2-0.05,0,-TW-0.02,dx-dw/2,dh+0.05,0.02,wood);box(dx+dw/2,0,-TW-0.02,dx+dw/2+0.05,dh+0.05,0.02,wood);box(dx-dw/2-0.05,dh,-TW-0.02,dx+dw/2+0.05,dh+0.05,0.02,wood);
   // air conditioner (indoor unit)
   const acs=acSpot(l0);
   if(acs&&!acs.fail){const wn=acs.wall,a0=acs.a0,a1=acs.a1,y0=acs.y0,y1=acs.y1;wb2(wn,a0,a1,y0,y1,-0.22,0,M(0xF7F8F6));wb2(wn,a0+0.04,a1-0.04,y0+0.025,y0+0.06,-0.226,-0.21,M(0x8E979A));wb2(wn,a1-0.16,a1-0.1,y1-0.06,y1-0.04,-0.226,-0.21,M(0x3FB6E8));
     wb2(wn,a1-0.08,a1-0.03,Math.max(0.05,y0-0.9),y0,-0.06,-0.01,M(0xE4E6E2));
-    g.add(label(`Máy lạnh ${f2(+l0.ac.hp)} HP`,wpos(wn,(a0+a1)/2,y1+0.25,-0.35),(Math.max(W,L)*0.075+0.12)*0.8));}
+    if(full)g.add(label(`Máy lạnh ${f2(+l0.ac.hp)} HP`,wpos(wn,(a0+a1)/2,y1+0.25,-0.35),(Math.max(W,L)*0.075+0.12)*0.8));}
   // loft
   if(lo.on){const lw=M(0x9B6B43);box(0,lo.h-lo.t,zE,W,lo.h,L,lw);const steel=M(0x3B4542);box(0,lo.h-lo.t-0.12,zE,W,lo.h-lo.t,zE+0.08,steel);
     const sw=st.on?st.w:0;const rx0=st.on&&st.side==='left'?sw:0,rx1=st.on&&st.side==='right'?W-sw:W;
     if(rx1-rx0>0.1){box(rx0,lo.h+0.86,zE,rx1,lo.h+0.9,zE+0.04,steel);box(rx0,lo.h+0.45,zE,rx1,lo.h+0.47,zE+0.03,steel);const n=Math.max(1,Math.round((rx1-rx0)/0.5));for(let i=0;i<=n;i++){const xx=rx0+(rx1-rx0)*i/n;box(xx-0.02,lo.h,zE,xx+0.02,lo.h+0.9,zE+0.04,steel)}}
-    // a mattress on the loft for scale
-    if(d>1.6&&W>1.8)box(W/2-0.8,lo.h,L-2.05,W/2+0.8,lo.h+0.15,L-0.05,M(0xDCE5EE));
     if(st.on){const info=layoutInfo(l);const n=info.steps,rise=info.rise,tr=st.tread||0.22;const x0=st.side==='left'?0:W-sw,x1=x0+sw;
       for(let i=1;i<n;i++){const y=i*rise;const z1=zE-(n-i-1)*tr,z0=z1-tr;box(x0+0.04,y-0.035,z0,x1-0.04,y,z1,M(0xB07D4F))}
       const z0=zE-(n-1)*tr;const run=zE-z0,len=Math.hypot(run,lo.h),ang=-Math.atan2(lo.h,run);
@@ -1490,9 +1543,10 @@ function build3D(l0,fresh){
     put(L0+0.08,L0+0.08+sinkL,cA-half,cA+half,kh-0.005,kh+0.004,M(0xB9C3C7));put(L0+0.12,L0+0.04+sinkL,cA-half+0.04,cA+half-0.04,kh+0.004,kh+0.008,M(0x6E7B80));
     put(L1-0.08-stoveL,L1-0.08,cA-half,cA+half,kh,kh+0.03,M(0x1E2224));
     for(const f of [0.27,0.73]){const p0=L1-0.08-stoveL+stoveL*f;put(p0-0.07,p0+0.07,cA-0.07,cA+0.07,kh+0.03,kh+0.036,M(0x55585A))}
-    g.add(label(`Bếp ${f2(k.len)}×${f2(k.dep)}×${f2(k.h)}`,new T.Vector3((X0+X1)/2,kh+0.35,(Z0+Z1)/2),(Math.max(W,L)*0.075+0.12)*0.8));
+    if(full)g.add(label(`Bếp ${f2(k.len)}×${f2(k.dep)}×${f2(k.h)}`,new T.Vector3((X0+X1)/2,kh+0.35,(Z0+Z1)/2),(Math.max(W,L)*0.075+0.12)*0.8));
   }
   // dimension lines + labels
+  if(!full)return g;
   const lm=new T.LineBasicMaterial({color:0x0E6B5F});const line=(a,b)=>{const ge=new T.BufferGeometry().setFromPoints([new T.Vector3(...a),new T.Vector3(...b)]);g.add(new T.Line(ge,lm))};
   const o=0.35;line([0,0.01,-o],[W,0.01,-o]);line([0,0.01,-o-0.1],[0,0.01,-o+0.1]);line([W,0.01,-o-0.1],[W,0.01,-o+0.1]);
   line([-o,0.01,0],[-o,0.01,L]);line([-o-0.1,0.01,0],[-o+0.1,0.01,0]);line([-o-0.1,0.01,L],[-o+0.1,0.01,L]);
@@ -1501,9 +1555,78 @@ function build3D(l0,fresh){
   g.add(label(`Rộng ${f2(W)} m`,new T.Vector3(W/2,0.05,-o-0.25),sc));g.add(label(`Dài ${f2(L)} m`,new T.Vector3(-o-0.25,0.05,L/2),sc));g.add(label(`Trần ${f2(H)} m`,new T.Vector3(W+o+0.1,H*0.6,L),sc));
   if(lo.on)g.add(label(`Gác +${f2(lo.h)} m`,new T.Vector3(W/2,lo.h+1.15,zE+0.1),sc));
   if(wc.on){const back=wc.corner.startsWith('back'),left=wc.corner.endsWith('left');g.add(label(`WC ${f2(wc.w)}×${f2(wc.d)}`,new T.Vector3(left?wc.w/2:W-wc.w/2,0.5,back?L-wc.d/2:wc.d/2),sc*0.85))}
+  return g;
+}
+/* =========================== sơ đồ cả dãy trọ 3D =========================== */
+// Hệ tọa độ: mặt đường ở z<0, đứng ngoài đường nhìn vào là nhìn theo +z, nên bên TRÁI người nhìn là +x.
+// Lối đi (hoặc hành lang) chạy từ đường vào: x∈[0,cw]. Dãy A nằm bên trái lối đi (x>cw), dãy B bên phải (x<0).
+// Vai trò mỗi phòng: một dãy: 'k' kiot | 'row' dãy phía sau; hai dãy: 'kl'/'kr' kiot trái/phải, 'l'/'r' dãy trái/phải.
+function siteRoles(p,d){
+  const two=d.mode==='two';const out={};const byFloor={};
+  for(const r of p.rooms.slice().sort(byNo))(byFloor[r.floor||1]=byFloor[r.floor||1]||[]).push(r);
+  for(const f of Object.keys(byFloor)){const up=+f>1;const auto=[];
+    for(const r of byFloor[f]){let v=d.roles[r.id];
+      if(two){if(v==='k')v='kl';if(v==='row')v=null;if(!['kl','kr','l','r'].includes(v))v=null}else{v=v==='k'||v==='kl'||v==='kr'?'k':'row'}
+      if(up&&v){v=two?(v==='kl'?'l':v==='kr'?'r':v):'row'}
+      if(v)out[r.id]=v;else auto.push(r)}
+    // Hai dãy, phòng chưa chọn bên: nửa đầu bên trái, nửa sau bên phải.
+    auto.forEach((r,i)=>{out[r.id]=i<Math.ceil(auto.length/2)?'l':'r'})}
+  return out;
+}
+let uSiteT=null;
+function updateSiteFromDraft(){clearTimeout(uSiteT);uSiteT=setTimeout(()=>{const sh=topSheet();if(!sh||sh.type!=='site')return;
+  const info=document.getElementById('site-info');if(info)info.innerHTML=siteInfoHTML(S.props[sh.params.pid],sh.draft);
+  if(window.THREE&&R3.renderer&&R3.el&&document.body.contains(R3.el))buildSite(S.props[sh.params.pid],sh.draft,false)},150)}
+// Tính vị trí từng phòng (dùng cho cả vẽ 3D và phần tóm tắt).
+function siteLayout(p,d){
+  const TW=0.1,cw=Math.max(0.6,+d.cw||1.2),two=d.mode==='two';const roles=siteRoles(p,d);
+  const rooms=p.rooms.slice().sort(byNo);const floors=[...new Set(rooms.map(r=>r.floor||1))].sort((a,b)=>a-b);
+  const band=role=>two?(role==='l'||role==='kl'?'A':'B'):(d.side==='left'?'B':'A');
+  const out=[];const floorY={};let y=0;let maxZ=0,minX=0,maxX=cw;const walkEnd={};
+  for(const f of floors){
+    floorY[f]=y;const fr=rooms.filter(r=>(r.floor||1)===f);let hMax=2.5;
+    const z={A:0,B:0},kx={A:cw,B:0};
+    for(const r of fr){const role=roles[r.id];if(!role.startsWith('k'))continue;const l=roomLayout(p,r);const b=band(role);hMax=Math.max(hMax,l.H);
+      const x=b==='A'?kx.A+TW:kx.B-l.W-TW;kx[b]+=b==='A'?l.W+2*TW:-(l.W+2*TW);
+      out.push({room:r,l,kind:'kiosk',band:b,rot:0,pos:[x,y,TW],x0:x-TW,x1:x+l.W+TW,z0:0,z1:l.L+2*TW});z[b]=Math.max(z[b],l.L+2*TW+(two?0:0))}
+    for(const r of fr){const role=roles[r.id];if(role.startsWith('k'))continue;const l=roomLayout(p,r);const b=band(role);hMax=Math.max(hMax,l.H);const zc=z[b];
+      if(b==='A')out.push({room:r,l,kind:'row',band:b,rot:Math.PI/2,pos:[cw+TW,y,zc+l.W+TW],x0:cw,x1:cw+l.L+2*TW,z0:zc,z1:zc+l.W+2*TW});
+      else out.push({room:r,l,kind:'row',band:b,rot:-Math.PI/2,pos:[-TW,y,zc+TW],x0:-l.L-2*TW,x1:0,z0:zc,z1:zc+l.W+2*TW});
+      z[b]=zc+l.W+2*TW}
+    walkEnd[f]=Math.max(z.A,z.B,1);y+=hMax+0.2;
+  }
+  for(const o of out){minX=Math.min(minX,o.x0);maxX=Math.max(maxX,o.x1);maxZ=Math.max(maxZ,o.z1)}
+  return{items:out,floors,floorY,walkEnd,cw,two,minX,maxX,maxZ,height:y,roles};
+}
+function siteInfoHTML(p,d){const s=siteLayout(p,d);const k=s.items.filter(o=>o.kind==='kiosk').length;const W=s.maxX-s.minX,D=s.maxZ;
+  return`<div class="kpis" style="margin-top:0"><div class="kpi"><small>Mặt tiền</small><b>${f2(W)} m</b></div><div class="kpi"><small>Chiều sâu</small><b>${f2(D)} m</b></div><div class="kpi"><small>Kiot</small><b>${k}</b></div></div><p class="small muted" style="margin:6px 0 0">Đo theo mép tường ngoài, chưa tính khoảng lùi, tường rào. ${s.floors.length>1?s.floors.length+' tầng. ':''}${s.two?'Hành lang':'Lối đi'} rộng ${f2(s.cw)} m.</p>`}
+function buildSite(p,d,fresh){
+  const T=THREE;if(R3.group){R3.scene.remove(R3.group);disposeGroup(R3.group)}
+  const g=new T.Group();R3.group=g;R3.walls=[];
+  const s=siteLayout(p,d);const M=(c,o={})=>new T.MeshLambertMaterial(Object.assign({color:c},o));
+  const box=(x0,y0,z0,x1,y1,z1,mat)=>{const sx=Math.abs(x1-x0),sy=Math.abs(y1-y0),sz=Math.abs(z1-z0);if(sx<0.001||sy<0.001||sz<0.001)return;const m=new T.Mesh(new T.BoxGeometry(sx,sy,sz),mat);m.position.set((x0+x1)/2,(y0+y1)/2,(z0+z1)/2);g.add(m)};
+  const span=Math.max(s.maxX-s.minX,s.maxZ,s.height,4);const sc=span*0.06+0.45;
+  // mặt đường, vỉa hè, nền đất
+  const ex=2;box(s.minX-ex,-0.12,-5.2,s.maxX+ex,-0.06,-0.6,M(0x5E6366));box(s.minX-ex,-0.1,-0.6,s.maxX+ex,-0.02,0,M(0xC9C4BA));
+  for(let x=s.minX-ex+0.5;x<s.maxX+ex-1;x+=2.4)box(x,-0.06,-2.95,x+1.2,-0.055,-2.85,M(0xF2F2EE));
+  box(s.minX-ex,-0.14,0,s.maxX+ex,-0.09,s.maxZ+1.2,M(0xB9C2A8));
+  g.add(label('Mặt đường',new T.Vector3((s.minX+s.maxX)/2,0.15,-3.6),sc));
+  // lối đi / hành lang từng tầng
+  for(const f of s.floors){const y=s.floorY[f];const zEnd=s.walkEnd[f];
+    if(f===s.floors[0])box(0,-0.09,-0.6,s.cw,-0.01,zEnd,M(0xD9D4C8));
+    else{box(0,y-0.18,0,s.cw,y,zEnd,M(0xCFC9BC));const st=M(0x3B4542);
+      const rails=s.two?[]:[(d.side==='left'?s.cw-0.03:0.03)];
+      for(const rx of rails){box(rx-0.02,y+0.95,0,rx+0.02,y+1.0,zEnd,st);for(let zz=0;zz<=zEnd;zz+=1.2)box(rx-0.02,y,zz,rx+0.02,y+1,zz+0.04,st)}}
+    g.add(label(`${s.two?'Hành lang':'Lối đi'} ${f2(s.cw)} m${s.floors.length>1?' · tầng '+f:''}`,new T.Vector3(s.cw/2,y+0.25,Math.min(zEnd*0.5,zEnd-0.5)),sc*0.8))}
+  // các phòng
+  for(const o of s.items){const walls=[];const rg=roomGroup(o.l,walls,false);const par=new T.Group();par.add(rg);par.rotation.y=o.rot;par.position.set(...o.pos);g.add(par);par.updateMatrixWorld(true);
+    for(const w of walls){w.center.applyMatrix4(par.matrixWorld);w.normal.applyQuaternion(par.quaternion);R3.walls.push(w)}
+    const cx=(o.x0+o.x1)/2,cz=(o.z0+o.z1)/2;
+    g.add(label(`${o.kind==='kiosk'?'Kiot ':'P.'}${o.room.no}`,new T.Vector3(cx,o.pos[1]+o.l.H+0.45,cz),sc));
+    if(o.kind==='kiosk')box(o.x0+0.2,o.pos[1]+Math.min(o.l.H-0.1,2.9),-0.45,o.x1-0.2,o.pos[1]+Math.min(o.l.H-0.1,2.9)+0.08,0,M(0x0E6B5F));}
   R3.scene.add(g);
-  R3.target.set(W/2,Math.min(H*0.36,1.5),L/2);R3.span=Math.max(W,L,H);R3.minR=R3.span*0.5;R3.maxR=R3.span*5;
-  if(fresh){R3.theta=-2.3;R3.phi=1.02;R3.radius=R3.span*2.1}
+  R3.target.set((s.minX+s.maxX)/2,Math.min(s.height*0.3,2),s.maxZ/2-0.8);R3.span=span;R3.minR=span*0.25;R3.maxR=span*4;
+  if(fresh){R3.theta=-2.0;R3.phi=0.95;R3.radius=span*1.5}
   R3.dirty=true;
 }
 function label(text,pos,scale){
@@ -1521,7 +1644,9 @@ const LS_TENANT='sotro.tenant.v1';
 const EXP_CATS=['Sửa chữa','Điện nước chung','Internet','Vệ sinh, rác','Thuế, phí','Khác'];
 const assetUrl=id=>'/_blob/'+encodeURIComponent(id);
 function normTenant(t){if(t.dob==null)t.dob='';if(t.gender==null)t.gender='';if(t.home==null)t.home='';if(!Array.isArray(t.members))t.members=[];if(t.portal==null)t.portal='';return t}
-function normProp(p){if(!p)return p;p.owner=Object.assign({name:'',phone:'',cccd:'',address:''},p.owner||{});if(p.readDay==null)p.readDay=1;if(p.terms==null)p.terms='';if(p.equipment==null)p.equipment='';if(!Array.isArray(p.closedPortals))p.closedPortals=[];normLayout(p.layout);for(const r of p.rooms||[]){if(r.tenant)normTenant(r.tenant);if(r.layout)normLayout(r.layout)}return p}
+function normProp(p){if(!p)return p;p.owner=Object.assign({name:'',phone:'',cccd:'',address:''},p.owner||{});if(p.readDay==null)p.readDay=1;if(p.terms==null)p.terms='';if(p.equipment==null)p.equipment='';if(!Array.isArray(p.closedPortals))p.closedPortals=[];normLayout(p.layout);if(!Array.isArray(p.designs))p.designs=[];p.designs.forEach(d=>normLayout(d.layout));p.site=normSite(p.site);
+  for(const r of p.rooms||[]){if(r.tenant)normTenant(r.tenant);if(r.layout)normLayout(r.layout);if(r.design&&!designOf(p,r.design))r.design=null}return p}
+function normSite(s){s=s||{};const cw=toNum(s.cw);return{mode:s.mode==='two'?'two':'one',side:s.side==='left'?'left':'right',cw:cw==null?1.2:clamp(cw,0.6,6),roles:Object.assign({},s.roles||{})}}
 const normCode=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 const fmtCode=t=>String(t||'').toUpperCase().slice(0,5)+'-'+String(t||'').toUpperCase().slice(5);
 function newToken(){const a='abcdefghjkmnpqrstuvwxyz23456789';const b=new Uint32Array(10);crypto.getRandomValues(b);return[...b].map(x=>a[x%a.length]).join('')}
@@ -2181,6 +2306,26 @@ function runSetTarget(v){
   const r=rowOf(st.pid,st.m,key);if(!st.url||st.state!=='done')sh.draft.value=r?r[f+'1']??null:null;render();
 }
 Object.assign(SHEETS,{
+ designs(sh){const p=S.props[sh.params.pid];const cnt=id=>p.rooms.filter(r=>roomUses(p,r,id)).length;const custom=p.rooms.filter(r=>r.layout).sort(byNo);
+  const item=(id,name,l)=>`<button class="li" data-act="openLayout" data-did="${esc(id)}"><span class="mi" style="background:var(--accent-soft);color:var(--accent);width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:none">${ic('cube',18)}</span><span class="grow"><b>${esc(name)}</b><span>${f2(l.W)} × ${f2(l.L)} m · trần ${f2(l.H)} m${l.loft.on?' · có gác':''}${l.wc.on?' · WC':''} · ${cnt(id)} phòng</span></span><span class="chev">${ic('chev',18)}</span></button>`;
+  return{title:'Thiết kế phòng 3D',body:`<p class="small muted">Mỗi thiết kế là một mẫu phòng 3D. Chọn nhiều phòng dùng chung một thiết kế: sửa thiết kế thì các phòng đó đổi theo. Kiot mặt tiền thường rộng hơn, không gác: nên tạo thiết kế riêng cho kiot.</p>
+   <div class="list">${item('default','Mẫu chung',p.layout)}${p.designs.map(x=>item(x.id,x.name,x.layout)).join('')}</div>
+   ${custom.length?`<p class="small muted">Phòng có kích thước riêng: ${custom.map(r=>esc(r.no)).join(', ')}. Đổi trong trang chi tiết phòng.</p>`:''}
+   <div class="btns"><button class="btn" data-act="newDesign">${ic('plus',18)}Thêm thiết kế</button><button class="btn" data-act="openSite">${ic('building',18)}Sơ đồ cả dãy 3D</button></div>`}},
+ site(sh){const p=S.props[sh.params.pid];const d=sh.draft;const two=d.mode==='two';
+  if(!p.rooms.length)return{title:'Sơ đồ dãy trọ 3D',body:'<p class="muted">Khu chưa có phòng nào. Thêm phòng ở tab Phòng trước.</p>'};
+  const roles=siteRoles(p,d);const opts=two?[['kl','Kiot, bên trái'],['kr','Kiot, bên phải'],['l','Dãy trái'],['r','Dãy phải']]:[['k','Kiot mặt tiền'],['row','Dãy phía sau']];
+  const rows=p.rooms.slice().sort(byNo).map(r=>{const up=(r.floor||1)>1;const o=up?opts.filter(([v])=>!v.startsWith('k')):opts;const cur=roles[r.id];
+   return`<div class="li" style="gap:10px"><span class="plate">${esc(r.no)}</span><span class="grow"><b>Tầng ${r.floor||1}</b><span>${esc(r.layout?'Kích thước riêng':designName(p,r.design))}</span></span><select data-ch="siteRole" data-rid="${r.id}" aria-label="Vị trí phòng ${esc(r.no)}" style="width:auto;min-width:138px;flex:none">${o.map(([v,t])=>`<option value="${v}" ${v===cur?'selected':''}>${t}</option>`).join('')}</select></div>`}).join('');
+  const body=`<div class="stage-pin"><div class="stage" data-3d="site">${stageOverlay(true)}</div></div>
+   <div id="site-info" style="margin-top:12px">${siteInfoHTML(p,d)}</div>
+   <div class="group"><h4>${ic('building',18)}Kiểu dãy trọ</h4>${seg('mode',d.mode,[['one','Một dãy'],['two','Hai dãy, hành lang giữa']])}
+    ${two?'<p class="hint" style="margin:6px 0 0">Hai dãy phòng quay cửa vào nhau, hành lang ở giữa chạy từ đường vào.</p>':`<div class="fld" style="margin-top:10px"><span class="fl">Lối đi và cửa các phòng phía sau (nhìn từ đường vào)</span>${seg('side',d.side,[['left','Bên trái kiot'],['right','Bên phải kiot']])}<span class="hint">Lối đi chạy dọc từ đường vào, cửa các phòng phía sau quay ra lối đi này.</span></div>`}
+    ${fld(two?'Hành lang rộng':'Lối đi rộng','cw',d.cw,{type:'number',sfx:'m',hint:'Thường 1,2–2 m. Có xe máy đi vào nên từ 1,5 m.'})}</div>
+   <div class="group"><h4>${ic('door',18)}Vị trí từng phòng</h4><p class="small muted" style="margin:0 0 6px">Kiot quay mặt ra đường. Các phòng phía sau xếp từ ngoài đường vào theo số phòng. Phòng tầng trên xếp chồng lên theo cùng thứ tự.</p><div class="list">${rows}</div>
+    <button class="btn sm" data-act="openDesigns" style="margin-top:8px">${ic('cube',16)}Thiết kế phòng (kiot, phòng thường…)</button></div>`;
+  return{title:'Sơ đồ dãy trọ 3D',body,foot:`<button class="btn" data-act="back">Hủy</button><button class="btn pri" data-act="saveSite">${ic('check',18)}Lưu sơ đồ</button>`};
+ },
  readSet(sh){const d=sh.draft;const inClaude=!!window.claude;
   let body=`<div class="group">${tog('Tự đọc số khi chụp hoặc chọn ảnh','autoRead',d.autoRead,'Số đọc được điền sẵn vào ô Chỉ số mới. Bạn so với ảnh rồi bấm lưu.')}</div>`;
   if(caps.imgOK)body+=`<div class="banner" style="background:var(--ok-soft);color:var(--ok)">${ic('check',18)}<span>Đang mở trong app Claude: Claude đọc số, không cần khóa API.</span></div>`;
@@ -2205,6 +2350,10 @@ Object.assign(SHEETS,{
  }
 });
 Object.assign(A,{
+ openSite(){const p=P();push('site',{pid:p.id},normSite(clone(p.site)))},
+ saveSite(){const sh=topSheet();const p=S.props[sh.params.pid];const d=normSite(sh.draft);
+  // Lưu vai trò đã thấy trên màn hình (kể cả phần tự chia hai dãy) để lần sau mở lại không đổi.
+  d.roles=siteRoles(p,d);p.site=d;persist('p',p.id);pop();toast('Đã lưu sơ đồ dãy trọ')},
  openReadSet(){push('readSet',{},{autoRead:autoReadOn(),key:getApiKey()})},
  saveReadSet(){const d=topSheet().draft;S.settings.autoRead=!!d.autoRead;persist('s');
   if(!window.claude){const k=String(d.key||'').trim();if(k&&!/^sk-ant-/.test(k)){toast('Khóa API Claude thường bắt đầu bằng sk-ant-');focusId('f-key');return}setApiKey(k)}
