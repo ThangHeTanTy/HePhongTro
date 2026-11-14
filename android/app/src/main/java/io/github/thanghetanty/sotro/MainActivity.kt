@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var webView: WebView
     private lateinit var offline: OfflineLibs
+    lateinit var updater: AppUpdater
 
     private val assetLoader by lazy {
         WebViewAssetLoader.Builder()
@@ -83,6 +84,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         offline = OfflineLibs(assets)
+        updater = AppUpdater(this)
         WebView.setWebContentsDebuggingEnabled((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0)
 
         webView = WebView(this).apply {
@@ -129,7 +131,12 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
             webView.loadUrl(START_URL)
         }
+        // Tự xem có bản mới trên GitHub (tối đa 12 giờ một lần), chờ app mở xong cho đỡ vướng.
+        if (savedInstanceState == null) webView.postDelayed({ updater.check(manual = false) }, 4000)
     }
+
+    /** Ghi ngay dữ liệu đang chờ của trang (trước khi vào nền hoặc cài bản cập nhật). */
+    fun flushWeb() = webView.evaluateJavascript("window.sotroAndroid&&sotroAndroid.flush()", null)
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
@@ -138,7 +145,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         // Ghi ngay dữ liệu đang chờ trước khi app vào nền.
-        webView.evaluateJavascript("window.sotroAndroid&&sotroAndroid.flush()", null)
+        flushWeb()
         webView.onPause()
         super.onPause()
     }
@@ -146,6 +153,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         webView.onResume()
+        updater.onResume()
     }
 
     override fun onDestroy() {

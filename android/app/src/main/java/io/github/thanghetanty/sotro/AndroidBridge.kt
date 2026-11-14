@@ -58,6 +58,16 @@ class AndroidBridge(private val activity: MainActivity) {
         }
     }
 
+    /** Phiên bản app, hiện trong Thiết lập. */
+    @JavascriptInterface
+    fun appVersion(): String = activity.updater.currentName
+
+    /** Nút "Kiểm tra cập nhật" trong Thiết lập. */
+    @JavascriptInterface
+    fun checkUpdate() {
+        activity.runOnUiThread { activity.updater.check(manual = true) }
+    }
+
     @JavascriptInterface
     fun copyText(text: String) {
         activity.runOnUiThread {

@@ -27,6 +27,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # cần lịch sử và các thẻ để ghi danh sách thay đổi
 
       - uses: actions/setup-node@v4
         with:
@@ -71,14 +73,27 @@ jobs:
           name: SoTro-1.0.${{ github.run_number }}
           path: out/SoTro.apk
 
+      # App đọc phần trên dòng --- để hiện "Có bản mới" (AppUpdater.kt), phần dưới là hướng dẫn cài lần đầu.
+      - name: Ghi chú phát hành
+        if: github.ref == 'refs/heads/main'
+        run: |
+          prev=$(git describe --tags --abbrev=0 --match 'android-v*' HEAD 2>/dev/null || true)
+          list=$(git log --no-merges --format='- %s' ${prev:+$prev..}HEAD -- src android build.mjs | head -15)
+          {
+            echo "${list:-- Đóng gói lại, không đổi tính năng}"
+            echo
+            echo '---'
+            echo 'Đã cài app: mở Sổ Trọ, app tự báo có bản mới, hoặc vào Thiết lập › Kiểm tra cập nhật.'
+            echo 'Cài lần đầu: tải SoTro.apk bên dưới về điện thoại Android rồi mở để cài (cho phép cài từ nguồn này khi được hỏi).'
+          } > out/notes.md
+          cat out/notes.md
+
       - name: Phát hành bản mới
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-v1.0.${{ github.run_number }}
           name: Sổ Trọ Android 1.0.${{ github.run_number }}
-          body: |
-            Tải SoTro.apk về điện thoại Android rồi mở để cài (cho phép cài từ nguồn này khi được hỏi).
-            Cài đè lên bản cũ để giữ nguyên dữ liệu.
+          body_path: out/notes.md
           files: out/SoTro.apk
           make_latest: true

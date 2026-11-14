@@ -575,6 +575,7 @@ function tabSettings(p){
   <div class="sec-h"><h3>Dữ liệu</h3></div>
   <div class="list">
    ${li('openReadSet','camera','Đọc số trên ảnh',readEngine()?'Tự đọc: '+ENGINE_NAME[readEngine()]:'Đang tắt, nhập số bằng tay')}
+   ${androidVersion()?li('checkUpdate','refresh','Kiểm tra cập nhật',`App Android bản ${esc(androidVersion())} · tự kiểm tra mỗi ngày`):''}
    ${li('backup','save','Sao lưu ra tệp',`Tệp .json chứa toàn bộ khu trọ và hóa đơn`)}
    ${li('backupZip','img','Sao lưu kèm ảnh đồng hồ',`Tệp .zip gồm dữ liệu và ảnh đồng hồ lưu trên máy này`)}
    <label class="li" style="cursor:pointer"><span class="mi" style="background:var(--accent-soft);color:var(--accent);width:32px;height:32px;border-radius:9px">${ic('upload',18)}</span><span class="grow"><b>Khôi phục từ tệp</b><span>Thay toàn bộ dữ liệu hiện tại bằng tệp sao lưu</span></span><input type="file" accept=".json,.zip,application/json,application/zip" id="restore-file" data-ch="restore" hidden></label>
@@ -2092,6 +2093,9 @@ async function androidSave(filename,data){
     SoTroAndroid.saveFile(filename,b.type||'',await blobToBase64(b));return true
   }catch(e){toast('Không lưu được tệp');return false}
 }
+// Phiên bản app Android (rỗng khi chạy trên trình duyệt hoặc app cũ chưa có bộ cập nhật).
+function androidVersion(){try{return window.SoTroAndroid&&SoTroAndroid.appVersion?String(SoTroAndroid.appVersion()):''}catch(e){return''}}
+Object.assign(A,{checkUpdate(){try{SoTroAndroid.checkUpdate()}catch(e){toast('Bản app này chưa có bộ cập nhật, hãy tải bản mới trên GitHub')}}});
 // Nút Quay lại của Android: đóng lớp trên cùng, rồi về trang chủ; trả false thì app thoát.
 window.sotroAndroid={
   back(){if(ui.sheets.length){pop();return true}if(ui.tab!=='home'){ui.tab='home';render();window.scrollTo(0,0);return true}return false},
