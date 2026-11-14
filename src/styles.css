@@ -273,3 +273,10 @@ input.reading{min-height:58px;font-family:var(--f-mono);font-size:28px;font-weig
 .calc-rows div{display:flex;gap:10px}.calc-rows div span:first-child{flex:1;color:var(--muted)}.calc-rows div b{font-variant-numeric:tabular-nums;text-align:right}
 .qr{background:#fff;padding:6px;border-radius:10px;width:150px;flex:none}.qr svg{display:block;width:100%;height:auto}
 details>summary{list-style:none}details>summary::-webkit-details-marker{display:none}
+/* Chốt số bằng ảnh: khung chờ chụp/chọn ảnh */
+.run-empty{border:1.5px dashed var(--line);border-radius:14px;background:var(--surface2);padding:20px 16px;text-align:center;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:10px}
+.run-empty p{margin:0;font-size:14px;line-height:1.5;color:var(--ink)}
+.run-empty .btns{justify-content:center}
+.photo-big.meter{max-height:42vh}
+.photo-redo{display:flex;gap:8px;margin:8px 0 10px}
+.photo-redo .btn{flex:1}
