@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Trùng với --bg và --accent trong src/styles.css -->
+    <!-- Trùng với màu nền (bg) và màu nhấn (accent) trong src/styles.css -->
     <color name="page_bg">#F1F5F3</color>
     <color name="accent">#0E6B5F</color>
     <color name="icon_bg">#0E6B5F</color>
