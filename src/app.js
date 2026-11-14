@@ -918,6 +918,7 @@ function softRefreshHints(sh){
 let dlP=null;
 function getDownloads(){if(!dlP)dlP=(window.claude&&window.claude.use)?window.claude.use('downloads').catch(()=>null):Promise.resolve(null);return dlP}
 async function saveFile(filename,data){
+  if(window.SoTroAndroid)return androidSave(filename,data);
   const dl=await getDownloads();
   if(!dl){
     if(!window.claude){try{const b=data instanceof Blob?data:new Blob([data],{type:'application/octet-stream'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);toast('Đã lưu '+filename);return true}catch(e){}}
@@ -926,6 +927,7 @@ async function saveFile(filename,data){
   catch(e){const c=e&&e.code;toast(c==='declined'?'Đã hủy lưu tệp':c==='rate_limited'?'Đang có hộp thoại lưu khác, thử lại sau giây lát':'Không lưu được tệp ('+(c||'lỗi')+')');return false}
 }
 function copyText(t,okMsg){
+  if(window.SoTroAndroid){try{SoTroAndroid.copyText(String(t));toast(okMsg||'Đã chép');return}catch(e){}}
   try{navigator.clipboard.writeText(t).then(()=>toast(okMsg||'Đã chép')).catch(()=>push('text',{text:t}))}catch(e){push('text',{text:t})}
 }
 function billText(pid,month,key){
@@ -1681,6 +1683,25 @@ Object.assign(INPUTS,{
  exp(el){const p=P();const L=ensureLedger(p.id,ui.month);const x=L.expenses[+el.dataset.i];if(!x)return;if(el.dataset.f==='amount')x.amount=toNum(el.value);else x[el.dataset.f]=el.value;persist('b',billKey(p.id,ui.month));refreshMoney(p)}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target&&e.target.id==='tenant-code'){e.preventDefault();A.enterCode()}});
+
+/* =========================== app Android (vỏ WebView, xem thư mục android/) =========================== */
+// Ghi ngay các thay đổi đang chờ khi app bị ẩn, để Android tắt app nền cũng không mất dữ liệu vừa nhập.
+function flushNow(){if(pending.size){clearTimeout(flushT);flush()}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushNow()});
+window.addEventListener('pagehide',flushNow);
+function blobToBase64(b){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const s=String(r.result);res(s.slice(s.indexOf(',')+1))};r.onerror=()=>rej(r.error);r.readAsDataURL(b)})}
+async function androidSave(filename,data){
+  try{
+    const b=data instanceof Blob?data:new Blob([data],{type:'application/octet-stream'});
+    // Bên Android tự hiện thông báo đã lưu, kèm nút Mở và Chia sẻ.
+    SoTroAndroid.saveFile(filename,b.type||'',await blobToBase64(b));return true
+  }catch(e){toast('Không lưu được tệp');return false}
+}
+// Nút Quay lại của Android: đóng lớp trên cùng, rồi về trang chủ; trả false thì app thoát.
+window.sotroAndroid={
+  back(){if(ui.sheets.length){pop();return true}if(ui.tab!=='home'){ui.tab='home';render();window.scrollTo(0,0);return true}return false},
+  flush:flushNow
+};
 
 /* =========================== toast & boot =========================== */
 let toastT=null;
