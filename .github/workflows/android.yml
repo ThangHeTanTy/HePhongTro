@@ -1,0 +1,84 @@
+# Đóng gói app Android (APK) từ bản web.
+# - Mỗi lần đẩy mã: tải APK ở mục Artifacts của lần chạy.
+# - Trên nhánh main: tạo bản phát hành, tải trực tiếp trên điện thoại tại
+#   https://github.com/<chủ kho>/<tên kho>/releases/latest/download/SoTro.apk
+name: Android APK
+
+on:
+  push:
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - 'index.html'
+      - 'build.mjs'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Đóng gói bản web (index.html)
+        run: node build.mjs
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Khóa ký riêng (nếu đã thêm vào Secrets)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SOTRO_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/sotro.jks"
+            echo "SOTRO_KEYSTORE=$RUNNER_TEMP/sotro.jks" >> "$GITHUB_ENV"
+            echo "Dùng khóa ký riêng."
+          else
+            echo "Chưa có SOTRO_KEYSTORE_BASE64: dùng khóa chung android/keystore/sotro-chung.jks."
+          fi
+
+      - name: Đóng gói APK
+        working-directory: android
+        env:
+          SOTRO_KEYSTORE_PASSWORD: ${{ secrets.SOTRO_KEYSTORE_PASSWORD }}
+          SOTRO_KEY_ALIAS: ${{ secrets.SOTRO_KEY_ALIAS }}
+          SOTRO_KEY_PASSWORD: ${{ secrets.SOTRO_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/app-release.apk ../out/SoTro.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SoTro-1.0.${{ github.run_number }}
+          path: out/SoTro.apk
+
+      - name: Phát hành bản mới
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v1.0.${{ github.run_number }}
+          name: Sổ Trọ Android 1.0.${{ github.run_number }}
+          body: |
+            Tải SoTro.apk về điện thoại Android rồi mở để cài (cho phép cài từ nguồn này khi được hỏi).
+            Cài đè lên bản cũ để giữ nguyên dữ liệu.
+          files: out/SoTro.apk
+          make_latest: true

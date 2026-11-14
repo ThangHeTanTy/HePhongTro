@@ -2,6 +2,9 @@
 
 Ứng dụng quản lý phòng trọ cho thuê, dùng trên điện thoại. Một chủ trọ quản lý được nhiều khu trọ, mỗi khu có bảng giá và mẫu phòng riêng.
 
+- **iPhone:** mở bản web (GitHub Pages) bằng Safari, chọn Chia sẻ › Thêm vào màn hình chính.
+- **Android:** cài app [SoTro.apk](https://github.com/ThangHeTanTy/HePhongTro/releases/latest/download/SoTro.apk). Xem [android/README.md](android/README.md).
+
 ## Tính năng
 
 - **Nhiều khu trọ:** tạo khu, tự đánh số phòng theo tầng (101, 102, 201…) hoặc liên tiếp (1, 2, 3…).
@@ -26,6 +29,7 @@ build.mjs         Gộp src/ thành tệp HTML hoàn chỉnh
 index.html        Bản đã đóng gói, chạy trực tiếp trên trình duyệt (tạo bởi build.mjs)
 dist/sotro-artifact.html  Bản đã đóng gói để đăng lên Claude (tạo bởi build.mjs)
 docs/nhac-viec.md Nội dung tác vụ nhắc việc hằng ngày trên Claude
+android/          App Android: WebView chạy index.html, đóng gói APK bằng GitHub Actions
 ```
 
 Thư viện tải từ cdnjs khi cần: three.js r128 (3D), SheetJS 0.18.5 (Excel), JSZip 3.10.1 (tệp nén, .docx), qrcode-generator 1.4.4 (VietQR).
