@@ -565,6 +565,7 @@ function tabSettings(p){
   <div class="card"><label class="fld"><span class="fl">Báo trước ngày trả phòng</span><span class="fi"><input type="number" inputmode="numeric" id="set-alert" data-in="alertDays" value="${S.settings.alertDays||30}" min="1"><span class="sfx">ngày</span></span><span class="hint">Phòng có hạn trả trong khoảng này sẽ hiện ở Tổng quan và được tô màu cam.</span></label></div>
   <div class="sec-h"><h3>Dữ liệu</h3></div>
   <div class="list">
+   ${li('openReadSet','camera','Đọc số trên ảnh',readEngine()?'Tự đọc: '+ENGINE_NAME[readEngine()]:'Đang tắt, nhập số bằng tay')}
    ${li('backup','save','Sao lưu ra tệp',`Tệp .json chứa toàn bộ khu trọ và hóa đơn`)}
    ${li('backupZip','img','Sao lưu kèm ảnh đồng hồ',`Tệp .zip gồm dữ liệu và ảnh đồng hồ lưu trên máy này`)}
    <label class="li" style="cursor:pointer"><span class="mi" style="background:var(--accent-soft);color:var(--accent);width:32px;height:32px;border-radius:9px">${ic('upload',18)}</span><span class="grow"><b>Khôi phục từ tệp</b><span>Thay toàn bộ dữ liệu hiện tại bằng tệp sao lưu</span></span><input type="file" accept=".json,.zip,application/json,application/zip" id="restore-file" data-ch="restore" hidden></label>
@@ -1254,10 +1255,10 @@ async function handleMeterPhoto(el){
   const r=rowOf(pid,m,key);if(!r)return;
   let blob;try{blob=await shrink(file)}catch(e){toast('Không mở được ảnh này, hãy chụp lại.');return}
   const top=topSheet();if(top&&top.type==='meter'){try{URL.revokeObjectURL(top.params.url)}catch(e){}ui.sheets.pop()}
-  const st={pid,m,key,f,url:URL.createObjectURL(blob),blob,state:caps.imgOK?'reading':'manual',conf:'',note:'',photoId:null,upload:'none',applied:false};
+  const st={pid,m,key,f,url:URL.createObjectURL(blob),blob,state:readEngine()?'reading':'manual',engine:readEngine(),conf:'',note:'',photoId:null,upload:'none',applied:false};
   push('meter',st,{value:r[f+'1']});const sh=topSheet();
   storePhoto(st,()=>{if(topSheet()===sh)requestRender()});
-  if(caps.imgOK)readMeter(sh);
+  if(readEngine())readMeter(sh);
 }
 // Lưu ảnh làm bằng chứng: vào kho ảnh của Claude nếu có, nếu không thì lưu ngay trên máy này.
 function storePhoto(st,done){
@@ -1309,26 +1310,127 @@ async function cleanLocalPhotos(){
     for(const k of keys){if(refs.has(k))continue;const t=parseInt(String(k).slice(2).split('_')[0],36);if(t&&now-t>864e5)await phDel(k)}}catch(e){}
 }
 async function readMeter(sh){
-  const st=sh.params;const r=rowOf(st.pid,st.m,st.key);const kind=st.f==='e'?'electricity meter (kWh)':'water meter (m³)';const prev=r?r[st.f+'0']:null;
-  const prompt=`Read the cumulative reading on this ${kind}, photographed at a Vietnamese boarding house.
-The previous month's reading was ${prev}. The new reading is normally equal to or somewhat higher than that.
-Rules: read the main register (the row of number wheels, or the LCD total). Ignore digits that are red, inside a red frame, or after a decimal point, and return only the whole-number part. Ignore serial numbers, model text and small dials. If a wheel is between two digits, take the lower digit.
-Reply with only JSON like {"reading": 12345, "confidence": "high", "note": ""}. "confidence" is "high", "medium" or "low". "note" is a short note in Vietnamese when the photo is blurry, has glare, or a digit is mid-roll; otherwise "". If there is no readable meter, reply {"reading": null, "confidence": "low", "note": "<lý do bằng tiếng Việt>"}.`;
+  const st=sh.params;const r=rowOf(st.pid,st.m,st.key);const prev=r?r[st.f+'0']:null;const eng=readEngine();st.engine=eng;if(!eng)return;
   try{
-    const out=await caps.sample.json(prompt,{images:[st.blob],modelTier:'default'});
+    const out=eng==='claude'?await caps.sample.json(meterPrompt(st.f,prev),{images:[st.blob],modelTier:'default'})
+      :eng==='api'?await readViaApi(st.blob,meterPrompt(st.f,prev))
+      :await readViaOcr(st.blob,prev,r?avgUse(st.pid,st.m,st.key,st.f):null,st.f);
     const v=out&&typeof out.reading==='number'&&isFinite(out.reading)?out.reading:null;
     st.state=v==null?'fail':'done';st.conf=(out&&out.confidence)||'';st.note=(out&&typeof out.note==='string')?out.note:'';
     if(v!=null&&sh.draft&&!st.typed&&sh.params===st)sh.draft.value=v;
   }catch(e){
     st.state='fail';
-    st.note=({not_granted:'Bạn chưa cho phép gửi ảnh cho Claude.',rate_limited:'Đang đọc quá nhiều ảnh, thử lại sau ít phút.',image_rejected:'Ảnh không hợp lệ, hãy chụp lại.',images_unavailable:'Chế độ xem này không gửi được ảnh.',invalid_json:'Không đọc rõ được số.',refused:'Không đọc được ảnh này.'})[e&&e.code]||'Không đọc được số tự động.';
+    st.note=({not_granted:'Bạn chưa cho phép gửi ảnh cho Claude.',rate_limited:'Đang đọc quá nhiều ảnh, thử lại sau ít phút.',image_rejected:'Ảnh không hợp lệ, hãy chụp lại.',images_unavailable:'Chế độ xem này không gửi được ảnh.',invalid_json:'Không đọc rõ được số.',refused:'Không đọc được ảnh này.',
+      bad_key:'Khóa API Claude không đúng hoặc đã bị thu hồi, kiểm tra ở Thiết lập › Đọc số trên ảnh.',no_credit:'Tài khoản Claude API hết tiền hoặc khóa không dùng được.',api_error:'Máy chủ Claude đang lỗi, thử lại sau.',
+      offline:'Không kết nối được. Kiểm tra mạng.',ocr_load:'Không tải được bộ đọc số (cần mạng lần đầu).'})[e&&e.code]||'Không đọc được số tự động.';
   }
   if(topSheet()===sh&&sh.params===st){const keep=document.activeElement&&document.activeElement.id==='meter-val';if(keep)renderMeterStatus(sh);else render()}
 }
+function meterPrompt(f,prev){const kind=f==='e'?'electricity meter (kWh)':'water meter (m³)';
+  return`Read the cumulative reading on this ${kind}, photographed at a Vietnamese boarding house.
+The previous month's reading was ${prev}. The new reading is normally equal to or somewhat higher than that.
+Rules: read the main register (the row of number wheels, or the LCD total). Ignore digits that are red, inside a red frame, or after a decimal point, and return only the whole-number part. Ignore serial numbers, model text and small dials. If a wheel is between two digits, take the lower digit.
+Reply with only JSON like {"reading": 12345, "confidence": "high", "note": ""}. "confidence" is "high", "medium" or "low". "note" is a short note in Vietnamese when the photo is blurry, has glare, or a digit is mid-roll; otherwise "". If there is no readable meter, reply {"reading": null, "confidence": "low", "note": "<lý do bằng tiếng Việt>"}.`}
+
+/* =========================== tự đọc số: Claude API (khóa của chủ trọ) và bộ đọc chạy trên máy =========================== */
+// Thứ tự: Claude trong app Claude > Claude API nếu đã nhập khóa > bộ đọc chữ Tesseract.js chạy ngay trên điện thoại (miễn phí).
+const LS_KEY='sotro.claudeKey';
+function getApiKey(){try{return(localStorage.getItem(LS_KEY)||'').trim()}catch(e){return''}}
+function setApiKey(k){try{k?localStorage.setItem(LS_KEY,k):localStorage.removeItem(LS_KEY)}catch(e){}}
+const autoReadOn=()=>S.settings.autoRead!==false;
+function readEngine(){if(!autoReadOn())return null;if(caps.imgOK)return'claude';if(window.claude)return null;return getApiKey()?'api':'ocr'}
+const ENGINE_NAME={claude:'Claude (trong app Claude)',api:'Claude API, dùng khóa của bạn',ocr:'Bộ đọc trên máy (miễn phí)'};
+
+const SDK_URL='https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.3.0/+esm';
+let sdkP=null;
+function loadSdk(){if(!sdkP)sdkP=import(SDK_URL).then(m=>m.default||m.Anthropic).catch(e=>{sdkP=null;throw e});return sdkP}
+const READ_SCHEMA={type:'object',properties:{reading:{anyOf:[{type:'number'},{type:'null'}]},confidence:{type:'string',enum:['high','medium','low']},note:{type:'string'}},required:['reading','confidence','note'],additionalProperties:false};
+async function readViaApi(blob,prompt){
+  let Anthropic;try{Anthropic=await loadSdk()}catch(e){throw{code:'offline'}}
+  const client=new Anthropic({apiKey:getApiKey(),dangerouslyAllowBrowser:true,maxRetries:1});
+  let res;
+  try{
+    res=await client.beta.messages.create({
+      model:'claude-opus-5-5',max_tokens:16000,
+      output_config:{effort:'medium',format:{type:'json_schema',schema:READ_SCHEMA}},
+      // Nếu bị từ chối vì bộ lọc an toàn, máy chủ tự chuyển sang mẫu dự phòng.
+      betas:['server-side-fallback-2026-07-01'],fallbacks:'default',
+      messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:blob.type||'image/jpeg',data:await blobToBase64(blob)}},{type:'text',text:prompt}]}]
+    });
+  }catch(e){
+    if(e instanceof Anthropic.AuthenticationError||e instanceof Anthropic.PermissionDeniedError)throw{code:'bad_key'};
+    if(e instanceof Anthropic.RateLimitError)throw{code:'rate_limited'};
+    if(e instanceof Anthropic.BadRequestError)throw{code:/credit|billing|balance/i.test(String(e.message))?'no_credit':'image_rejected'};
+    if(e instanceof Anthropic.APIConnectionError)throw{code:'offline'};
+    if(e instanceof Anthropic.APIError)throw{code:'api_error'};
+    throw e;
+  }
+  if(res.stop_reason==='refusal')throw{code:'refused'};
+  const t=res.content.find(b=>b.type==='text');
+  try{return JSON.parse(t.text)}catch(e){throw{code:'invalid_json'}}
+}
+
+const OCR={js:'https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js',worker:'https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/worker.min.js',core:'https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0',lang:'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int'};
+let ocrP=null;
+function ocrWorker(){
+  if(!ocrP)ocrP=(async()=>{
+    await loadScript(OCR.js);
+    const w=await Tesseract.createWorker('eng',1,{workerPath:OCR.worker,corePath:OCR.core,langPath:OCR.lang});
+    await w.setParameters({tessedit_char_whitelist:'0123456789',tessedit_pageseg_mode:'11'});
+    return w;
+  })().catch(e=>{ocrP=null;throw e});
+  return ocrP;
+}
+// Ảnh xám, kéo giãn tương phản; crop<1 là cắt lấy phần giữa ảnh (thường là ô số khi chụp gần).
+async function ocrCanvas(blob,crop){
+  const url=URL.createObjectURL(blob);
+  try{const img=new Image();img.src=url;await img.decode();
+    const sw=img.naturalWidth*crop,sh=img.naturalHeight*crop,sc=Math.min(2,1600/Math.max(sw,sh));
+    const c=document.createElement('canvas');c.width=Math.round(sw*sc);c.height=Math.round(sh*sc);const x=c.getContext('2d');
+    x.drawImage(img,(img.naturalWidth-sw)/2,(img.naturalHeight-sh)/2,sw,sh,0,0,c.width,c.height);
+    const d=x.getImageData(0,0,c.width,c.height),a=d.data;let lo=255,hi=0;
+    for(let i=0;i<a.length;i+=4){const g=a[i]*.299+a[i+1]*.587+a[i+2]*.114;a[i]=g;if(g<lo)lo=g;if(g>hi)hi=g}
+    const k=255/Math.max(1,hi-lo);for(let i=0;i<a.length;i+=4){const g=(a[i]-lo)*k;a[i]=a[i+1]=a[i+2]=g}
+    x.putImageData(d,0,0);return c;
+  }finally{URL.revokeObjectURL(url)}
+}
+// Các dãy số đọc được, kèm cách bỏ 1-4 chữ số cuối (bánh xe số lẻ màu đỏ, đồng hồ nước thường có 3-4 bánh, hay bị đọc lẫn vào).
+function ocrCandidates(text,conf){
+  const out=[];
+  for(const line of String(text).split('\n')){
+    const groups=line.trim().split(/\s+/).filter(g=>/^\d+$/.test(g));if(!groups.length)continue;
+    const strs=new Set(groups);if(groups.length>1)strs.add(groups.join(''));
+    for(const s of strs){if(s.length<2||s.length>9)continue;out.push({s,v:parseInt(s,10),conf,cut:0});
+      for(const cut of[1,2,3,4])if(s.length-cut>=2)out.push({s:s.slice(0,-cut),v:parseInt(s.slice(0,-cut),10),conf,cut})}
+  }
+  return out;
+}
+// Chọn số hợp lý nhất: không nhỏ hơn số cũ, mức dùng gần mức trung bình các tháng trước.
+function pickReading(cands,prev,avg,f){
+  if(!cands.length)return null;
+  if(prev==null){const b=cands.filter(c=>!c.cut).sort((a,b)=>b.s.length-a.s.length||b.conf-a.conf)[0];return b?{c:b,score:0}:null}
+  const exp=avg&&avg>0?avg:(f==='e'?150:10);const hi=prev+Math.max(exp*6,f==='e'?1500:150);
+  let best=null;
+  for(const c of cands){if(c.v<prev||c.v>hi)continue;
+    const score=c.conf/100-Math.abs((c.v-prev)-exp)/(exp*6+1)-c.cut*0.2;
+    if(!best||score>best.score)best={c,score}}
+  return best;
+}
+async function readViaOcr(blob,prev,avg,f){
+  let w;try{w=await ocrWorker()}catch(e){throw{code:'ocr_load'}}
+  let all=[],best=null;
+  for(const crop of[1,0.6,0.4]){
+    const {data}=await w.recognize(await ocrCanvas(blob,crop));
+    all=all.concat(ocrCandidates(data.text,data.confidence||0));best=pickReading(all,prev,avg,f);
+    if(best&&best.c.conf>=70&&!best.c.cut)break;
+  }
+  if(!best)return{reading:null,confidence:'low',note:prev==null?'Không thấy dãy số nào trên ảnh.':'Không đọc chắc được số trên ảnh.'};
+  return{reading:best.c.v,confidence:best.c.conf>=75&&!best.c.cut&&best.score>0.4?'medium':'low',note:''};
+}
 function renderMeterStatus(sh){const el=document.getElementById('meter-status');if(el)el.innerHTML=meterStatus(sh.params)}
 function meterStatus(st){
-  if(st.state==='reading')return`<div class="banner" style="background:var(--accent-soft);color:var(--accent);margin:0">${ic('refresh',18)}<span>Claude đang đọc số trên ảnh, thường mất 10–40 giây…</span></div>`;
-  if(st.state==='done'){const hi=st.conf==='high';return`<div class="banner" style="background:var(--${hi?'ok':'warn'}-soft);color:var(--${hi?'ok':'warn'});margin:0">${ic(hi?'check':'alert',18)}<span>${hi?'Đã đọc được số. So lại với ảnh trước khi lưu.':'Đọc được nhưng chưa chắc chắn, hãy so kỹ với ảnh.'}${st.note?' '+esc(st.note):''}</span></div>`}
+  if(st.state==='reading')return`<div class="banner" style="background:var(--accent-soft);color:var(--accent);margin:0">${ic('refresh',18)}<span>${st.engine==='ocr'?'Đang đọc số trên máy… Lần đầu cần mạng để tải bộ đọc (khoảng 5 MB).':'Claude đang đọc số trên ảnh, thường mất 10–40 giây…'}</span></div>`;
+  if(st.state==='done'){const hi=st.conf==='high';return`<div class="banner" style="background:var(--${hi?'ok':'warn'}-soft);color:var(--${hi?'ok':'warn'});margin:0">${ic(hi?'check':'alert',18)}<span>${st.engine==='ocr'?'Đã điền số đọc được vào ô Chỉ số mới. Bộ đọc trên máy có thể nhầm, so kỹ với ảnh trước khi lưu.':hi?'Đã đọc được số và điền vào ô Chỉ số mới. So lại với ảnh trước khi lưu.':'Đã điền số đọc được nhưng chưa chắc chắn, hãy so kỹ với ảnh.'}${st.note?' '+esc(st.note):''}</span></div>`}
   if(st.state==='fail')return`<div class="banner" style="margin:0">${ic('alert',18)}<span>${esc(st.note||'Không đọc được số tự động.')} Nhập số bạn thấy trên ảnh.</span></div>`;
   return`<p class="small muted">Nhập số bạn thấy trên ảnh. Ảnh được lưu kèm hóa đơn làm bằng chứng.</p>`;
 }
@@ -1768,11 +1870,11 @@ function runStep(run,tg){return{run,pid:run.pid,m:run.m,key:tg?tg.key:null,f:tg?
 async function runLoad(sh,file){
   let blob;try{blob=await shrink(file)}catch(e){toast('Không mở được ảnh này, hãy chụp lại.');return}
   const st=sh.params;if(st.url){try{URL.revokeObjectURL(st.url)}catch(e){}}
-  Object.assign(st,{url:URL.createObjectURL(blob),blob,state:caps.imgOK?'reading':'manual',conf:'',note:'',photoId:null,upload:'none',typed:false});
+  Object.assign(st,{url:URL.createObjectURL(blob),blob,state:readEngine()?'reading':'manual',engine:readEngine(),conf:'',note:'',photoId:null,upload:'none',typed:false});
   const r=rowOf(st.pid,st.m,st.key);sh.draft.value=r?r[st.f+'1']??null:null;
   storePhoto(st,()=>{if(topSheet()===sh&&sh.params===st)requestRender()});
   if(topSheet()===sh)render();
-  if(caps.imgOK)readMeter(sh);
+  if(readEngine())readMeter(sh);
 }
 function runAddPhotos(el){
   const files=[...(el.files||[])];el.value='';const sh=topSheet();if(!files.length||!sh||sh.type!=='meterRun')return;
@@ -1783,6 +1885,14 @@ function runSetTarget(v){
   const r=rowOf(st.pid,st.m,key);if(!st.url||st.state!=='done')sh.draft.value=r?r[f+'1']??null:null;render();
 }
 Object.assign(SHEETS,{
+ readSet(sh){const d=sh.draft;const inClaude=!!window.claude;
+  let body=`<div class="group">${tog('Tự đọc số khi chụp hoặc chọn ảnh','autoRead',d.autoRead,'Số đọc được điền sẵn vào ô Chỉ số mới. Bạn so với ảnh rồi bấm lưu.')}</div>`;
+  if(caps.imgOK)body+=`<div class="banner" style="background:var(--ok-soft);color:var(--ok)">${ic('check',18)}<span>Đang mở trong app Claude: Claude đọc số, không cần khóa API.</span></div>`;
+  else if(inClaude)body+=`<p class="small muted">Chế độ xem này không gửi được ảnh cho Claude, hãy nhập số bằng tay.</p>`;
+  else body+=`<div class="card"><p style="margin:0 0 8px"><b>Hai cách đọc</b></p><p class="small" style="margin:0 0 6px"><b>Bộ đọc trên máy</b>: miễn phí, chạy ngay trên điện thoại, cần mạng lần đầu để tải (khoảng 5 MB). Đọc tốt khi ảnh chụp gần, rõ, thẳng ô số; hay nhầm khi ảnh lóa, mờ hoặc chụp xa.</p><p class="small" style="margin:0"><b>Claude API</b>: chính xác hơn nhiều. Cần khóa API của Anthropic (tạo tại console.anthropic.com) và có tính phí, ước khoảng 0,01–0,03 USD mỗi ảnh. Khi có khóa, app dùng Claude thay cho bộ đọc trên máy.</p></div>
+   ${fld('Khóa Claude API (không bắt buộc)','key',d.key,{type:'password',full:1,ph:'sk-ant-…',hint:'Khóa chỉ lưu trong máy này, không nằm trong tệp sao lưu. Để trống để dùng bộ đọc trên máy.'})}`;
+  return{title:'Đọc số trên ảnh',body,foot:`<button class="btn" data-act="back">Hủy</button><button class="btn pri" data-act="saveReadSet">${ic('check',18)}Lưu</button>`};
+ },
  meterRun(sh){
   const st=sh.params;const run=st.run;const t=runTargets(run.pid,run.m);
   if(!t.length||!st.key)return{title:'Chốt số bằng ảnh',body:'<p class="muted">Chưa có hóa đơn tháng này. Tạo hóa đơn ở tab Hóa đơn trước.</p>'};
@@ -1799,6 +1909,10 @@ Object.assign(SHEETS,{
  }
 });
 Object.assign(A,{
+ openReadSet(){push('readSet',{},{autoRead:autoReadOn(),key:getApiKey()})},
+ saveReadSet(){const d=topSheet().draft;S.settings.autoRead=!!d.autoRead;persist('s');
+  if(!window.claude){const k=String(d.key||'').trim();if(k&&!/^sk-ant-/.test(k)){toast('Khóa API Claude thường bắt đầu bằng sk-ant-');focusId('f-key');return}setApiKey(k)}
+  pop();toast(readEngine()?'Đã lưu. Cách đọc: '+ENGINE_NAME[readEngine()]:'Đã tắt tự đọc số')},
  openRun(){const p=P();const m=ui.month;const run={pid:p.id,m,queue:[],saved:0};const tg=runNext(p.id,m,null)||runTargets(p.id,m)[0];const st=runStep(run,tg);
   const r=tg?rowOf(p.id,m,tg.key):null;push('meterRun',st,{value:r?r[tg.f+'1']??null:null})},
  runSkip(){const sh=topSheet();const st=sh.params;const tg=runNext(st.pid,st.m,{key:st.key,f:st.f});
