@@ -77,7 +77,7 @@ const ic=(n,s=20)=>`<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 2
 
 /* =========================== state =========================== */
 const S={props:{},bills:{},settings:{alertDays:30,activePid:null}};
-let dbRef=null,userRef=null,canWrite=null,reportsList=[];const caps={sample:null,assets:null,imgOK:false,photo:false};
+let dbRef=null,userRef=null,canWrite=null,reportsList=[];const caps={sample:null,assets:null,imgOK:false};
 const ui={tab:'home',month:curMonth(),sheets:[],roomFilter:'all'};
 let ver=0;const memo=new Map();function touch(){ver++;memo.clear()}
 let mode='boot',col=null,myId=null,cloudLoaded=false,loadTimer=null,syncState='idle';
@@ -420,6 +420,7 @@ function startLocal(){
   mode='local';const d=lsGet(LS_LOCAL);
   if(d&&d.props)loadInto(d);else{loadInto(null);loadDemoInto();saveLocal()}
   setSync('local');render();
+  setTimeout(cleanLocalPhotos,8000);
 }
 
 /* =========================== rendering =========================== */
@@ -441,6 +442,7 @@ function afterRender(){
   const st=document.querySelector('.sheet [data-3d]')||(!topSheet()&&document.querySelector('[data-3d]'));
   if(st)mount3D(st);
   const img=document.getElementById('inv-img');if(img&&!img.getAttribute('src'))genInvoiceImg();
+  hydratePhotos();
 }
 function shell(){
   if(ui.tenant)return tenantShell();
@@ -519,7 +521,7 @@ function tabBills(p){
   h+=`<div id="msum">${monthSumHTML(p.id,m)}</div>`;
   if(miss.length)h+=`<div class="card" style="margin-top:12px;display:flex;gap:12px;align-items:center"><span class="grow small">${has?`${miss.length} phòng đang thuê chưa có trong kỳ này.`:`Chưa có hóa đơn ${monthLabel(m).toLowerCase()}. Tạo kỳ thu để chốt số điện nước cho ${miss.length} phòng đang thuê.`}</span><button class="btn pri sm" data-act="createRows">${has?'Thêm vào kỳ':'Tạo hóa đơn'}</button></div>`;
   if(rows.length){
-    h+=`<div class="btns" style="margin:12px 0"><button class="btn sm" data-act="openRecalc">${ic('refresh',16)}Tính lại</button><button class="btn sm" data-act="excel">${ic('grid',16)}Excel tiền điện</button><button class="btn sm" data-act="zipImgs">${ic('img',16)}Ảnh tất cả</button></div>`;
+    h+=`<div class="btns" style="margin:12px 0"><button class="btn sm pri" data-act="openRun">${ic('camera',16)}Chốt số bằng ảnh</button><button class="btn sm" data-act="openRecalc">${ic('refresh',16)}Tính lại</button><button class="btn sm" data-act="excel">${ic('grid',16)}Excel tiền điện</button><button class="btn sm" data-act="zipImgs">${ic('img',16)}Ảnh tất cả</button></div>`;
     h+=`<div class="stack">${rows.map(([key,r])=>billCard(p,m,key,r)).join('')}</div>`;
   }else if(!miss.length)h+=`<p class="muted" style="text-align:center;padding:30px 0">Không có phòng nào đang thuê trong ${monthLabel(m).toLowerCase()}.</p>`;
   return h;
@@ -564,7 +566,8 @@ function tabSettings(p){
   <div class="sec-h"><h3>Dữ liệu</h3></div>
   <div class="list">
    ${li('backup','save','Sao lưu ra tệp',`Tệp .json chứa toàn bộ khu trọ và hóa đơn`)}
-   <label class="li" style="cursor:pointer"><span class="mi" style="background:var(--accent-soft);color:var(--accent);width:32px;height:32px;border-radius:9px">${ic('upload',18)}</span><span class="grow"><b>Khôi phục từ tệp</b><span>Thay toàn bộ dữ liệu hiện tại bằng tệp sao lưu</span></span><input type="file" accept=".json,application/json" id="restore-file" data-ch="restore" hidden></label>
+   ${li('backupZip','img','Sao lưu kèm ảnh đồng hồ',`Tệp .zip gồm dữ liệu và ảnh đồng hồ lưu trên máy này`)}
+   <label class="li" style="cursor:pointer"><span class="mi" style="background:var(--accent-soft);color:var(--accent);width:32px;height:32px;border-radius:9px">${ic('upload',18)}</span><span class="grow"><b>Khôi phục từ tệp</b><span>Thay toàn bộ dữ liệu hiện tại bằng tệp sao lưu</span></span><input type="file" accept=".json,.zip,application/json,application/zip" id="restore-file" data-ch="restore" hidden></label>
    ${li('newProp','plus','Thêm khu trọ mới','Mỗi khu có bảng giá và mẫu phòng riêng')}
   </div>
   <p class="small muted" style="margin-top:12px">${mode==='cloud'?'Dữ liệu lưu riêng theo tài khoản của bạn, mở trên máy khác vẫn thấy.':'Dữ liệu đang lưu trên trình duyệt của máy này. Hãy sao lưu định kỳ.'}</p>
@@ -710,7 +713,7 @@ const SHEETS={
   const mi=(f,label,cls,icn,unit)=>`<div class="mrow2"><span class="mi ${cls}">${ic(icn,14)}</span><span class="lab">${label}</span><input type="number" inputmode="decimal" step="any" id="bi-${f}0" data-in="read" data-pid="${pid}" data-m="${month}" data-key="${key}" data-f="${f}0" value="${r[f+'0']??''}" aria-label="${label} số cũ"><span class="arr">→</span><input type="number" inputmode="decimal" step="any" id="bi-${f}1" data-in="read" data-pid="${pid}" data-m="${month}" data-key="${key}" data-f="${f}1" value="${r[f+'1']??''}" placeholder="Số mới" aria-label="${label} số mới">${camBtn(pid,month,key,f,r)}</div>`;
   return{title:`P.${esc(r.roomNo)} · ${monthLabel(month)}`,body:`<div class="row"><div class="grow"><b style="font-size:17px">${esc(r.tenantName)}</b><p class="small muted">Tính ngày ${dmy(r.calcAt)}${r.final?' · hóa đơn trả phòng':''}</p></div><span id="chip-${key}">${statusChip(c)}</span></div>
    <div class="group"><h4>Chỉ số đồng hồ <span class="muted small" style="font-weight:500">cũ → mới</span></h4>${mi('e','Điện','e','bolt')}${pr.waterMode!=='person'&&pr.well>0?mi('w','Giếng','w','drop'):''}${pr.waterMode!=='person'&&pr.city>0?mi('c','Nước máy','w','drop'):''}
-    <div class="fgrid">${liveFld('Số người','rpeople',r.people)}${liveFld('Giá thuê','rrent',r.rent,'đ')}</div>${photoThumbs(r.photos)}</div>
+    <div class="fgrid">${liveFld('Số người','rpeople',r.people)}${liveFld('Giá thuê','rrent',r.rent,'đ')}</div>${photoThumbs(r.photos,{pid,m:month,key})}</div>
    <div class="card"><div class="items" id="bill-items">${itemsHTML(c)}</div></div>
    <div class="group"><h4>Khoản phát sinh / giảm trừ</h4>${(r.adjust||[]).map((a,i)=>`<div class="adj"><input type="text" id="adj-n-${i}" data-in="adj" data-i="${i}" data-f="name" value="${esc(a.name)}" placeholder="VD: Sửa vòi nước"><input type="number" inputmode="numeric" id="adj-a-${i}" data-in="adj" data-i="${i}" data-f="amount" value="${a.amount??''}" placeholder="Số tiền (âm = giảm)"><button class="iconbtn" data-act="delAdj" data-i="${i}" aria-label="Xóa">${ic('x',18)}</button></div>`).join('')}<button class="btn sm" data-act="addAdj">${ic('plus',16)}Thêm khoản</button></div>
    <div class="group"><h4>Thanh toán</h4><div class="row"><span class="grow">${liveFld('Đã thu','rpaid',r.paid||'','đ')}</span><button class="btn soft" style="align-self:flex-end" data-act="payFull">${ic('check',18)}Thu đủ</button></div><p class="small" id="bill-paid-info">${paidInfo(c)}</p></div>
@@ -866,7 +869,15 @@ const A={
  saveImg(){const sh=topSheet();const s=sh.params;if(s.kind==='statement'){const room=S.props[s.pid].rooms.find(x=>x.id===s.rid);statementCanvas(s.pid,s.rid).then(cv=>cv.toBlob(b=>saveFile(`SaoKe_P${slug(room.no)}_${todayISO()}.png`,b),'image/png'));return}const r=rowOf(s.pid,s.month,s.key);invoiceCanvas(s.pid,s.month,s.key).then(cv=>cv.toBlob(b=>saveFile(`HoaDon_P${slug(r.roomNo)}_${s.month}.png`,b),'image/png'))},
  excel(){exportExcel(P().id,ui.month)},
  zipImgs(){zipImages(P().id,ui.month)},
- backup(){const data=JSON.stringify({app:'sotro',version:1,exportedAt:new Date().toISOString(),props:S.props,bills:S.bills,settings:S.settings},null,1);saveFile(`SoTro_saoluu_${todayISO()}.json`,data)},
+ backup(){saveFile(`SoTro_saoluu_${todayISO()}.json`,backupJSON())},
+ async backupZip(){
+  const ids=[...photoRefs()].filter(isLocalPh);toast('Đang đóng gói '+ids.length+' ảnh…');
+  try{await loadScript(URLS.zip)}catch(e){toast('Không tải được thư viện nén. Kiểm tra kết nối mạng.');return}
+  const z=new JSZip();z.file('sotro.json',backupJSON());let n=0;
+  for(const id of ids){const v=await phGet(id).catch(()=>null);if(v){z.file('anh/'+id+'.jpg',v.buf);n++}}
+  const blob=await z.generateAsync({type:'blob',mimeType:'application/zip'});
+  saveFile(`SoTro_saoluu_kemanh_${todayISO()}.zip`,blob);
+ },
  confirmOk(){const fn=confirmFn;confirmFn=null;ui.sheets.pop();if(fn)fn();else render()}
 };
 function openRecalc(pid,month,fromPrices){const sel={};for(const [k] of rowsSorted(pid,month))sel[k]=true;if(!Object.keys(sel).length){toast('Kỳ này chưa có hóa đơn để tính lại');return}push('recalc',{pid,month,fromPrices},{sel})}
@@ -897,7 +908,7 @@ document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if
 document.addEventListener('input',e=>{const el=e.target;
   if(el.dataset.draft!=null){const sh=topSheet();if(!sh||!sh.draft)return;const t=el.dataset.type;setPath(sh.draft,el.dataset.draft,t==='num'?toNum(el.value):t==='bool'?el.checked:el.value);
     if(sh.type==='layout'){if(el.dataset.draft==='useDefault'){if(el.checked)sh.draft.ac=clone(sh.draft.l.ac);else sh.draft.l.ac=clone(sh.draft.ac)}update3DFromDraft(sh)}
-    if(sh.type==='meter'){updateMeterInfo(sh);return}
+    if(sh.type==='meter'||sh.type==='meterRun'){updateMeterInfo(sh);return}
     if(el.dataset.rr){render();return}
     if(sh.type==='propForm'||sh.type==='addRooms'||sh.type==='roomForm'){const h=el.closest('.fld')&&el.closest('.fld').querySelector('.hint');if(h&&(el.dataset.draft==='rent'))h.textContent=toNum(el.value)?money(toNum(el.value))+' / tháng':'';if(sh.type!=='roomForm')softRefreshHints(sh)}
     return}
@@ -905,7 +916,9 @@ document.addEventListener('input',e=>{const el=e.target;
 document.addEventListener('change',e=>{const el=e.target;
   if(el.dataset.draft!=null&&el.tagName==='SELECT'&&!el.dataset.rr){const sh=topSheet();if(sh&&sh.draft){setPath(sh.draft,el.dataset.draft,el.value);if(sh.type==='layout')update3DFromDraft(sh)}}
   if(el.dataset.ch==='restore')restoreFile(el);
-  if(el.dataset.ch==='meterPhoto')handleMeterPhoto(el)});
+  if(el.dataset.ch==='meterPhoto')handleMeterPhoto(el);
+  if(el.dataset.ch==='runPhoto')runAddPhotos(el);
+  if(el.dataset.ch==='runTarget')runSetTarget(el.value)});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&ui.sheets.length&&!isEditing())pop()});
 function softRefreshHints(sh){
   // update generated room-number previews without re-rendering inputs
@@ -983,15 +996,22 @@ async function zipImages(pid,month){
   const zip=new window.JSZip();for(const [k,r] of rows){const cv=await invoiceCanvas(pid,month,k);const b=await new Promise(res=>cv.toBlob(res,'image/png'));zip.file(`HoaDon_P${slug(r.roomNo)}_${month}.png`,b)}
   const blob=await zip.generateAsync({type:'blob'});saveFile(`HoaDon_${slug(S.props[pid].name)}_${month}.zip`,blob);
 }
-function restoreFile(el){
-  const f=el.files&&el.files[0];if(!f)return;const rd=new FileReader();
-  rd.onload=()=>{let d;try{d=JSON.parse(rd.result)}catch(e){toast('Tệp không đúng định dạng sao lưu');return}
-    if(!d||d.app!=='sotro'||!d.props){toast('Đây không phải tệp sao lưu của Sổ Trọ');return}
-    ask('Khôi phục dữ liệu?',`Tệp có ${Object.keys(d.props).length} khu trọ, sao lưu lúc ${new Date(d.exportedAt).toLocaleString('vi-VN')}. Toàn bộ dữ liệu hiện tại sẽ được thay thế.`,'Khôi phục',()=>{
-      for(const k of Object.keys(S.props))if(!d.props[k])persistDel('p',k);for(const k of Object.keys(S.bills))if(!(d.bills||{})[k])persistDel('b',k);
-      S.props=d.props;S.bills=d.bills||{};S.settings=Object.assign({alertDays:30},d.settings||{});fixActive();
-      for(const k of Object.keys(S.props))persist('p',k);for(const k of Object.keys(S.bills))persist('b',k);persist('s');ui.sheets=[];ui.tab='home';render();toast('Đã khôi phục dữ liệu')},true)};
-  rd.readAsText(f);el.value='';
+function backupJSON(){return JSON.stringify({app:'sotro',version:1,exportedAt:new Date().toISOString(),props:S.props,bills:S.bills,settings:S.settings},null,1)}
+async function restoreFile(el){
+  const f=el.files&&el.files[0];el.value='';if(!f)return;let d,photos=[];
+  try{
+    if(/\.zip$/i.test(f.name)||/zip/.test(f.type)){
+      await loadScript(URLS.zip);const z=await JSZip.loadAsync(f);const j=z.file('sotro.json');if(!j)throw new Error('thiếu sotro.json');d=JSON.parse(await j.async('string'));
+      z.forEach((path,file)=>{const m=/^anh\/(l_[\w]+)\.jpg$/.exec(path);if(m&&!file.dir)photos.push([m[1],file])});
+    }else d=JSON.parse(await f.text());
+  }catch(e){toast('Tệp không đúng định dạng sao lưu');return}
+  if(!d||d.app!=='sotro'||!d.props){toast('Đây không phải tệp sao lưu của Sổ Trọ');return}
+  ask('Khôi phục dữ liệu?',`Tệp có ${Object.keys(d.props).length} khu trọ${photos.length?` và ${photos.length} ảnh đồng hồ`:''}, sao lưu lúc ${new Date(d.exportedAt).toLocaleString('vi-VN')}. Toàn bộ dữ liệu hiện tại sẽ được thay thế.`,'Khôi phục',async()=>{
+    for(const k of Object.keys(S.props))if(!d.props[k])persistDel('p',k);for(const k of Object.keys(S.bills))if(!(d.bills||{})[k])persistDel('b',k);
+    S.props=d.props;S.bills=d.bills||{};S.settings=Object.assign({alertDays:30},d.settings||{});fixActive();
+    for(const k of Object.keys(S.props))persist('p',k);for(const k of Object.keys(S.bills))persist('b',k);persist('s');ui.sheets=[];ui.tab='home';render();
+    let ok=0;for(const [id,file] of photos){try{await phPut(id,{buf:await file.async('arraybuffer'),type:'image/jpeg',at:Date.now()});ok++}catch(e){}}
+    if(ok)render();toast(photos.length?`Đã khôi phục dữ liệu và ${ok}/${photos.length} ảnh`:'Đã khôi phục dữ liệu')},true);
 }
 
 /* =========================== invoice image (canvas) =========================== */
@@ -1040,7 +1060,7 @@ async function invoiceCanvas(pid,month,key,opts={}){
     y=Math.max(y+(drew||0),ty)+20;
   }
   const ph=Object.entries(r.photos||{}).filter(([,id])=>id);
-  if(ph.length&&opts.photos!==false){const imgs=[];for(const [f,id] of ph){try{const im=new Image();im.src=assetUrl(id);await im.decode();imgs.push([f,im])}catch(e){}}
+  if(ph.length&&opts.photos!==false){const imgs=[];for(const [f,id] of ph){try{const u=await photoURL(id);if(!u)continue;const im=new Image();im.src=u;await im.decode();imgs.push([f,im])}catch(e){}}
     if(imgs.length){y+=60;x.fillStyle=C.muted;x.font=F(500,24);x.fillText('ẢNH ĐỒNG HỒ',PX,y);y+=20;const gap=24,n=imgs.length,w=Math.min(300,(W-2*PX-gap*(n-1))/n),h=w*0.75;
       imgs.forEach(([f,im],i)=>{const X=PX+i*(w+gap);const sc=Math.max(w/im.naturalWidth,h/im.naturalHeight);const sw=w/sc,shh=h/sc;x.drawImage(im,(im.naturalWidth-sw)/2,(im.naturalHeight-shh)/2,sw,shh,X,y,w,h);x.fillStyle=C.ink;x.font=F(500,22);x.fillText(meterName(f),X,y+h+30)});y+=h+40}}
   y+=48;x.fillStyle=C.ink;x.font=F(600,27);x.fillText(`Hạn thanh toán: ${dueDate(p,month)}`,PX,y);
@@ -1216,11 +1236,14 @@ async function initCaps(use){
     const [s,a]=await Promise.all([use('sample').catch(()=>null),use('assets').catch(()=>null)]);
     caps.sample=s;caps.assets=a;
     if(s){try{const l=await s.limits();caps.imgOK=!!(l&&l.images)}catch(e){caps.imgOK=false}}
-    caps.photo=!!(caps.imgOK||a);if(caps.photo)requestRender();
+    if(s||a)requestRender();
   }catch(e){}
 }
-function camBtn(pid,m,key,f,r){const has=r.photos&&r.photos[f];return`<label class="cam ${has?'has':''}" ${caps.photo?'':'hidden'} title="Chụp ảnh đồng hồ" aria-label="Chụp ảnh đồng hồ ${meterName(f)}">${ic('camera',18)}<input type="file" accept="image/*" capture="environment" hidden data-ch="meterPhoto" data-pid="${pid}" data-m="${m}" data-key="${esc(key)}" data-f="${f}"></label>`}
-function photoThumbs(ph){const e=Object.entries(ph||{}).filter(([,id])=>id);if(!e.length)return'';return`<div class="thumbs">${e.map(([f,id])=>`<button data-act="viewPhoto" data-id="${esc(id)}"><img src="${assetUrl(id)}" alt="Ảnh đồng hồ ${meterName(f)}" loading="lazy" onerror="this.style.visibility='hidden'"><span>${meterName(f)}</span></button>`).join('')}</div>`}
+function camBtn(pid,m,key,f,r){const has=r.photos&&r.photos[f];return`<label class="cam ${has?'has':''}" title="Chụp hoặc chọn ảnh đồng hồ" aria-label="${has?'Đổi ảnh':'Chụp hoặc chọn ảnh'} đồng hồ ${meterName(f)}">${ic('camera',18)}<input type="file" accept="image/*" hidden data-ch="meterPhoto" data-pid="${pid}" data-m="${m}" data-key="${esc(key)}" data-f="${f}"></label>`}
+function photoInput(attrs,capture,multiple){return`<input type="file" accept="image/*" ${capture?'capture="environment"':''} ${multiple?'multiple':''} hidden ${attrs}>`}
+// Hai nút nhỏ dưới ảnh: chụp lại bằng máy ảnh, hoặc chọn ảnh có sẵn trong máy.
+function photoRedo(attrs){return`<div class="photo-redo"><label class="btn sm">${ic('camera',16)}Chụp lại${photoInput(attrs,true)}</label><label class="btn sm">${ic('img',16)}Chọn ảnh khác${photoInput(attrs)}</label></div>`}
+function photoThumbs(ph,ctx){const e=Object.entries(ph||{}).filter(([,id])=>id);if(!e.length)return'';const c=ctx?`data-pid="${ctx.pid}" data-m="${ctx.m}" data-key="${esc(ctx.key)}"`:'';return`<div class="thumbs">${e.map(([f,id])=>`<button data-act="viewPhoto" data-id="${esc(id)}" data-f="${f}" ${c}><img ${phSrc(id)} alt="Ảnh đồng hồ ${meterName(f)}" loading="lazy" onerror="this.style.visibility='hidden'"><span>${meterName(f)}</span></button>`).join('')}</div>`}
 async function shrink(file,max=1600){
   const url=URL.createObjectURL(file);
   try{const img=new Image();img.src=url;await img.decode();const s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*s);c.height=Math.round(img.naturalHeight*s);c.getContext('2d').drawImage(img,0,0,c.width,c.height);return await new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('blob')),'image/jpeg',0.85))}
@@ -1231,12 +1254,60 @@ async function handleMeterPhoto(el){
   const r=rowOf(pid,m,key);if(!r)return;
   let blob;try{blob=await shrink(file)}catch(e){toast('Không mở được ảnh này, hãy chụp lại.');return}
   const top=topSheet();if(top&&top.type==='meter'){try{URL.revokeObjectURL(top.params.url)}catch(e){}ui.sheets.pop()}
-  const st={pid,m,key,f,url:URL.createObjectURL(blob),blob,state:caps.imgOK?'reading':'manual',conf:'',note:'',photoId:null,upload:caps.assets?'uploading':'none',applied:false};
+  const st={pid,m,key,f,url:URL.createObjectURL(blob),blob,state:caps.imgOK?'reading':'manual',conf:'',note:'',photoId:null,upload:'none',applied:false};
   push('meter',st,{value:r[f+'1']});const sh=topSheet();
-  if(caps.assets)caps.assets.upload(blob).then(res=>{st.photoId=res.id;st.upload='done';if(st.applied)attachPhoto(st);if(topSheet()===sh)requestRender()}).catch(()=>{st.upload='fail';if(topSheet()===sh)requestRender()});
+  storePhoto(st,()=>{if(topSheet()===sh)requestRender()});
   if(caps.imgOK)readMeter(sh);
 }
-function attachPhoto(st){const r=rowOf(st.pid,st.m,st.key);if(!r||!st.photoId)return;r.photos=Object.assign({},r.photos||{},{[st.f]:st.photoId});persist('b',billKey(st.pid,st.m))}
+// Lưu ảnh làm bằng chứng: vào kho ảnh của Claude nếu có, nếu không thì lưu ngay trên máy này.
+function storePhoto(st,done){
+  st.where=caps.assets?'cloud':'local';st.upload='uploading';
+  const p=caps.assets?caps.assets.upload(st.blob).then(res=>res.id):localPhotoSave(st.blob);
+  return p.then(id=>{st.photoId=id;st.upload='done';if(st.applied)attachPhoto(st)}).catch(()=>{st.upload='fail'}).then(()=>{if(done)done()});
+}
+function attachPhoto(st){const r=rowOf(st.pid,st.m,st.key);if(!r||!st.photoId)return;const old=r.photos&&r.photos[st.f];r.photos=Object.assign({},r.photos||{},{[st.f]:st.photoId});persist('b',billKey(st.pid,st.m));if(old&&old!==st.photoId)dropLocalPhoto(old)}
+const uploadText=st=>({uploading:'Đang lưu ảnh làm bằng chứng…',done:st.where==='local'?'Đã lưu ảnh trên máy này, ảnh sẽ kèm trong hóa đơn.':'Đã lưu ảnh, ảnh sẽ kèm trong hóa đơn và trang người thuê.',fail:'Không lưu được ảnh. Chỉ số vẫn được ghi.',none:''})[st.upload]||'';
+const meterFields=r=>{const pr=r.prices||{};return['e'].concat(pr.waterMode!=='person'&&pr.well>0?['w']:[],pr.waterMode!=='person'&&pr.city>0?['c']:[])};
+
+/* =========================== ảnh đồng hồ lưu trên máy (IndexedDB) =========================== */
+// Ảnh không nằm trong localStorage (quá nhỏ) mà trong IndexedDB, mã ảnh bắt đầu bằng "l_".
+const isLocalPh=id=>typeof id==='string'&&id.startsWith('l_');
+let phDbP=null;const phUrls=new Map();
+function phDb(){if(!phDbP)phDbP=new Promise((res,rej)=>{if(!window.indexedDB)return rej(new Error('Không có IndexedDB'));const q=indexedDB.open('sotro-photos',1);q.onupgradeneeded=()=>q.result.createObjectStore('photos');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)}).catch(e=>{phDbP=null;throw e});return phDbP}
+function phTx(mode,fn){return phDb().then(db=>new Promise((res,rej)=>{const t=db.transaction('photos',mode);const rq=fn(t.objectStore('photos'));let out;if(rq)rq.onsuccess=()=>{out=rq.result};t.oncomplete=()=>res(out);t.onerror=t.onabort=()=>rej(t.error)}))}
+const phPut=(id,v)=>phTx('readwrite',st=>st.put(v,id));
+const phGet=id=>phTx('readonly',st=>st.get(id));
+const phDel=id=>phTx('readwrite',st=>st.delete(id));
+const phKeys=()=>phTx('readonly',st=>st.getAllKeys());
+let askedPersist=false;
+async function localPhotoSave(blob){
+  // Lưu dạng ArrayBuffer cho chắc chắn trên Safari đời cũ.
+  const id='l_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
+  await phPut(id,{buf:await blob.arrayBuffer(),type:blob.type||'image/jpeg',at:Date.now()});
+  if(!askedPersist){askedPersist=true;try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}}
+  return id;
+}
+async function photoURL(id){
+  if(!isLocalPh(id))return assetUrl(id);
+  if(phUrls.has(id))return phUrls.get(id);
+  const v=await phGet(id).catch(()=>null);if(!v)return null;
+  const u=URL.createObjectURL(new Blob([v.buf],{type:v.type||'image/jpeg'}));phUrls.set(id,u);return u;
+}
+async function photoBlob(id){
+  if(isLocalPh(id)){const v=await phGet(id);return v?new Blob([v.buf],{type:v.type||'image/jpeg'}):null}
+  const r=await fetch(assetUrl(id));return r.ok?await r.blob():null;
+}
+// Thuộc tính src cho thẻ <img>: ảnh trên máy được nạp sau khi vẽ (xem hydratePhotos).
+function phSrc(id){if(!isLocalPh(id))return`src="${assetUrl(id)}"`;const u=phUrls.get(id);return u?`src="${u}"`:`data-lph="${esc(id)}"`}
+function hydratePhotos(){document.querySelectorAll('img[data-lph]').forEach(img=>{const id=img.dataset.lph;img.removeAttribute('data-lph');photoURL(id).then(u=>{if(u)img.src=u;else img.style.visibility='hidden'})})}
+function dropLocalPhoto(id){if(!isLocalPh(id))return;const u=phUrls.get(id);if(u){URL.revokeObjectURL(u);phUrls.delete(id)}phDel(id).catch(()=>{})}
+function photoRefs(){const ids=new Set();for(const b of Object.values(S.bills||{}))for(const r of Object.values((b&&b.rooms)||{}))for(const id of Object.values(r.photos||{}))if(id)ids.add(id);return ids}
+// Xóa ảnh không còn hóa đơn nào dùng (chụp rồi bỏ, ảnh đã thay), chỉ xóa ảnh cũ hơn 1 ngày.
+async function cleanLocalPhotos(){
+  if(mode!=='local')return;
+  try{const refs=photoRefs();const keys=await phKeys();const now=Date.now();
+    for(const k of keys){if(refs.has(k))continue;const t=parseInt(String(k).slice(2).split('_')[0],36);if(t&&now-t>864e5)await phDel(k)}}catch(e){}
+}
 async function readMeter(sh){
   const st=sh.params;const r=rowOf(st.pid,st.m,st.key);const kind=st.f==='e'?'electricity meter (kWh)':'water meter (m³)';const prev=r?r[st.f+'0']:null;
   const prompt=`Read the cumulative reading on this ${kind}, photographed at a Vietnamese boarding house.
@@ -1247,12 +1318,12 @@ Reply with only JSON like {"reading": 12345, "confidence": "high", "note": ""}. 
     const out=await caps.sample.json(prompt,{images:[st.blob],modelTier:'default'});
     const v=out&&typeof out.reading==='number'&&isFinite(out.reading)?out.reading:null;
     st.state=v==null?'fail':'done';st.conf=(out&&out.confidence)||'';st.note=(out&&typeof out.note==='string')?out.note:'';
-    if(v!=null&&sh.draft&&!st.typed)sh.draft.value=v;
+    if(v!=null&&sh.draft&&!st.typed&&sh.params===st)sh.draft.value=v;
   }catch(e){
     st.state='fail';
     st.note=({not_granted:'Bạn chưa cho phép gửi ảnh cho Claude.',rate_limited:'Đang đọc quá nhiều ảnh, thử lại sau ít phút.',image_rejected:'Ảnh không hợp lệ, hãy chụp lại.',images_unavailable:'Chế độ xem này không gửi được ảnh.',invalid_json:'Không đọc rõ được số.',refused:'Không đọc được ảnh này.'})[e&&e.code]||'Không đọc được số tự động.';
   }
-  if(topSheet()===sh){const keep=document.activeElement&&document.activeElement.id==='meter-val';if(keep)renderMeterStatus(sh);else render()}
+  if(topSheet()===sh&&sh.params===st){const keep=document.activeElement&&document.activeElement.id==='meter-val';if(keep)renderMeterStatus(sh);else render()}
 }
 function renderMeterStatus(sh){const el=document.getElementById('meter-status');if(el)el.innerHTML=meterStatus(sh.params)}
 function meterStatus(st){
@@ -1611,13 +1682,15 @@ function homeExtras(p){
 Object.assign(SHEETS,{
  meter(sh){
   const st=sh.params;const r=rowOf(st.pid,st.m,st.key);if(!r)return{title:'Chụp đồng hồ',body:'<p class="muted">Hóa đơn đã bị xóa.</p>'};const unit=st.f==='e'?'kWh':'m³';
-  const up={uploading:'Đang lưu ảnh làm bằng chứng…',done:'Đã lưu ảnh, ảnh sẽ kèm trong hóa đơn và trang người thuê.',fail:'Không lưu được ảnh. Chỉ số vẫn được ghi.',none:''}[st.upload]||'';
-  return{title:`${meterName(st.f)} · P.${esc(r.roomNo)}`,body:`<img class="photo-big" src="${st.url}" alt="Ảnh đồng hồ ${meterName(st.f)}"><div id="meter-status">${meterStatus(st)}</div>
+  const up=uploadText(st);const da=`data-ch="meterPhoto" data-pid="${st.pid}" data-m="${st.m}" data-key="${esc(st.key)}" data-f="${st.f}"`;
+  return{title:`${meterName(st.f)} · P.${esc(r.roomNo)}`,body:`<img class="photo-big meter" src="${st.url}" alt="Ảnh đồng hồ ${meterName(st.f)}">${photoRedo(da)}<div id="meter-status">${meterStatus(st)}</div>
    <label class="fld"><span class="fl">Chỉ số mới (${unit})</span><input type="number" inputmode="decimal" step="any" id="meter-val" class="reading" data-draft="value" data-type="num" value="${sh.draft.value??''}"></label>
    <p class="small" id="meter-info">${meterInfo(st,sh.draft.value)}</p>${up?`<p class="small muted">${up}</p>`:''}`,
-   foot:`<label class="btn">${ic('camera',18)}Chụp lại<input type="file" accept="image/*" capture="environment" hidden data-ch="meterPhoto" data-pid="${st.pid}" data-m="${st.m}" data-key="${esc(st.key)}" data-f="${st.f}"></label><button class="btn pri" data-act="applyMeter">${ic('check',18)}Dùng số này</button>`};
+   foot:`<button class="btn pri" data-act="applyMeter">${ic('check',18)}Dùng số này</button>`};
  },
- photo(sh){return{title:'Ảnh đồng hồ',body:`<img class="photo-big" src="${assetUrl(sh.params.id)}" alt="Ảnh đồng hồ (không tải được ảnh)">`}},
+ photo(sh){const q=sh.params;const r=q.key?rowOf(q.pid,q.m,q.key):null;
+  return{title:r?`${meterName(q.f)} · P.${esc(r.roomNo)} · ${monthLabel(q.m)}`:'Ảnh đồng hồ',body:`<img class="photo-big" ${phSrc(q.id)} alt="Ảnh đồng hồ (không tải được ảnh)">${isLocalPh(q.id)?'<p class="small muted" style="margin-top:8px">Ảnh lưu trên máy này. Dùng “Sao lưu kèm ảnh” trong Thiết lập để giữ ảnh khi đổi máy.</p>':''}`,
+   foot:r?`<button class="btn" data-act="savePhoto">${ic('dl',18)}Lưu ảnh</button><button class="btn" data-act="delPhoto">${ic('trash',18)}Xóa ảnh</button>`:''}},
  portal(sh){
   const p=P();const room=p.rooms.find(r=>r.id===sh.params.rid);const t=room&&room.tenant;if(!t)return{title:'Trang người thuê',body:'<p class="muted">Phòng không có người thuê.</p>'};
   let body=`<p>Người thuê <b>${esc(t.name)}</b> xem được hóa đơn từng tháng, ảnh đồng hồ, mã QR chuyển khoản và gửi báo hỏng hóc cho bạn. Họ chỉ thấy phòng của mình.</p>`;
@@ -1654,12 +1727,14 @@ Object.assign(A,{
  enterCode(){const el=document.getElementById('tenant-code');enterTenant(el?el.value:'',false)},
  exitTenant(){exitTenant()},
  sendReport(){sendReport()},
- viewPhoto(el){push('photo',{id:el.dataset.id})},
+ viewPhoto(el){const d=el.dataset;push('photo',{id:d.id,f:d.f,pid:d.pid,m:d.m,key:d.key})},
+ async savePhoto(){const q=topSheet().params;const r=rowOf(q.pid,q.m,q.key);try{const b=await photoBlob(q.id);if(!b)throw 0;saveFile(`DongHo_P${slug(r?r.roomNo:'')}_${slug(meterName(q.f))}_${q.m}.jpg`,b)}catch(e){toast('Không lấy được ảnh này')}},
+ delPhoto(){const q=topSheet().params;ask('Xóa ảnh đồng hồ?','Chỉ số đã ghi vẫn giữ nguyên, chỉ xóa ảnh.','Xóa',()=>{const r=rowOf(q.pid,q.m,q.key);if(r&&r.photos&&r.photos[q.f]===q.id){const ph=Object.assign({},r.photos);delete ph[q.f];r.photos=ph;persist('b',billKey(q.pid,q.m))}dropLocalPhoto(q.id);pop();toast('Đã xóa ảnh')},true)},
  applyMeter(){
   const sh=topSheet();const st=sh.params;const v=sh.draft.value;if(v==null){toast('Nhập chỉ số mới');focusId('meter-val');return}
   const r=rowOf(st.pid,st.m,st.key);if(!r){pop();return}
   r[st.f+'1']=v;const nm=addMonth(st.m,1);const nr=rowOf(st.pid,nm,st.key);if(nr){nr[st.f+'0']=v;persist('b',billKey(st.pid,nm))}
-  st.applied=true;if(st.photoId){r.photos=Object.assign({},r.photos||{},{[st.f]:st.photoId})}
+  st.applied=true;if(st.photoId)attachPhoto(st);
   persist('b',billKey(st.pid,st.m));pop();toast(`Đã ghi ${meterName(st.f).toLowerCase()} ${num(v)}${st.upload==='uploading'?', ảnh đang được lưu':''}`);
  },
  openPortal(){push('portal',{rid:topSheet().params.rid})},
@@ -1683,6 +1758,63 @@ Object.assign(INPUTS,{
  exp(el){const p=P();const L=ensureLedger(p.id,ui.month);const x=L.expenses[+el.dataset.i];if(!x)return;if(el.dataset.f==='amount')x.amount=toNum(el.value);else x[el.dataset.f]=el.value;persist('b',billKey(p.id,ui.month));refreshMoney(p)}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target&&e.target.id==='tenant-code'){e.preventDefault();A.enterCode()}});
+
+/* =========================== chốt số bằng ảnh: đi lần lượt từng phòng, từng đồng hồ =========================== */
+function runTargets(pid,m){const out=[];for(const [key,r] of rowsSorted(pid,m))for(const f of meterFields(r))out.push({key,f,r});return out}
+// Đồng hồ kế tiếp chưa có số mới, tính từ đồng hồ "after" (vòng lại từ đầu nếu cần).
+function runNext(pid,m,after){const t=runTargets(pid,m);const i=after?t.findIndex(x=>x.key===after.key&&x.f===after.f):-1;
+  for(let k=1;k<=t.length;k++){const x=t[(i+k+t.length)%t.length];if(x.r[x.f+'1']==null)return x}return null}
+function runStep(run,tg){return{run,pid:run.pid,m:run.m,key:tg?tg.key:null,f:tg?tg.f:'e',url:null,blob:null,state:'none',conf:'',note:'',photoId:null,upload:'none',applied:false,typed:false}}
+async function runLoad(sh,file){
+  let blob;try{blob=await shrink(file)}catch(e){toast('Không mở được ảnh này, hãy chụp lại.');return}
+  const st=sh.params;if(st.url){try{URL.revokeObjectURL(st.url)}catch(e){}}
+  Object.assign(st,{url:URL.createObjectURL(blob),blob,state:caps.imgOK?'reading':'manual',conf:'',note:'',photoId:null,upload:'none',typed:false});
+  const r=rowOf(st.pid,st.m,st.key);sh.draft.value=r?r[st.f+'1']??null:null;
+  storePhoto(st,()=>{if(topSheet()===sh&&sh.params===st)requestRender()});
+  if(topSheet()===sh)render();
+  if(caps.imgOK)readMeter(sh);
+}
+function runAddPhotos(el){
+  const files=[...(el.files||[])];el.value='';const sh=topSheet();if(!files.length||!sh||sh.type!=='meterRun')return;
+  sh.params.run.queue.push(...files.slice(1));runLoad(sh,files[0]);
+}
+function runSetTarget(v){
+  const sh=topSheet();if(!sh||sh.type!=='meterRun')return;const [key,f]=v.split('|');const st=sh.params;st.key=key;st.f=f;
+  const r=rowOf(st.pid,st.m,key);if(!st.url||st.state!=='done')sh.draft.value=r?r[f+'1']??null:null;render();
+}
+Object.assign(SHEETS,{
+ meterRun(sh){
+  const st=sh.params;const run=st.run;const t=runTargets(run.pid,run.m);
+  if(!t.length||!st.key)return{title:'Chốt số bằng ảnh',body:'<p class="muted">Chưa có hóa đơn tháng này. Tạo hóa đơn ở tab Hóa đơn trước.</p>'};
+  const r=rowOf(run.pid,run.m,st.key);if(!r)return{title:'Chốt số bằng ảnh',body:'<p class="muted">Hóa đơn đã bị xóa.</p>'};
+  const unit=st.f==='e'?'kWh':'m³';const left=t.filter(x=>x.r[x.f+'1']==null).length;const pa='data-ch="runPhoto"';
+  const opts=t.map(x=>`<option value="${esc(x.key)}|${x.f}" ${x.key===st.key&&x.f===st.f?'selected':''}>P.${esc(x.r.roomNo)} · ${meterName(x.f)}${x.r[x.f+'1']!=null?' · đã có '+num(x.r[x.f+'1']):''}</option>`).join('');
+  let body=`<p class="small muted">${monthLabel(run.m)} · còn ${left}/${t.length} đồng hồ chưa có số mới${run.saved?` · vừa ghi ${run.saved}`:''}${run.queue.length?` · ${run.queue.length} ảnh đang chờ`:''}</p>`;
+  if(!left)body+=`<div class="banner" style="background:var(--ok-soft);color:var(--ok)">${ic('check',18)}<span>Tất cả đồng hồ tháng này đã có số mới. Chọn đồng hồ bên dưới nếu muốn chụp lại.</span></div>`;
+  body+=`<label class="fld"><span class="fl">Đồng hồ</span><select id="run-target" data-ch="runTarget" aria-label="Chọn phòng và đồng hồ">${opts}</select></label>`;
+  body+=st.url?`<img class="photo-big meter" src="${st.url}" alt="Ảnh đồng hồ ${meterName(st.f)} phòng ${esc(r.roomNo)}">${photoRedo(pa)}<div id="meter-status">${meterStatus(st)}</div>`
+   :`<div class="run-empty">${ic('camera',30)}<p>Chụp đồng hồ <b>${meterName(st.f).toLowerCase()}</b> phòng <b>${esc(r.roomNo)}</b>.<br>Hoặc chọn nhiều ảnh đã chụp sẵn: ảnh được gán lần lượt theo thứ tự phòng, bạn đổi được ở ô Đồng hồ.</p><div class="btns"><label class="btn pri">${ic('camera',18)}Chụp ảnh${photoInput(pa,true)}</label><label class="btn">${ic('img',18)}Chọn ảnh${photoInput(pa,false,true)}</label></div></div>`;
+  body+=`<label class="fld" style="margin-top:12px"><span class="fl">Chỉ số mới (${unit})</span><input type="number" inputmode="decimal" step="any" id="meter-val" class="reading" data-draft="value" data-type="num" value="${sh.draft.value??''}"></label><p class="small" id="meter-info">${meterInfo(st,sh.draft.value)}</p>${st.url&&uploadText(st)?`<p class="small muted">${uploadText(st)}</p>`:''}`;
+  return{title:'Chốt số bằng ảnh',body,foot:`<button class="btn" data-act="runSkip">Bỏ qua</button><button class="btn pri" data-act="runSave">${ic('check',18)}Lưu, tiếp</button>`};
+ }
+});
+Object.assign(A,{
+ openRun(){const p=P();const m=ui.month;const run={pid:p.id,m,queue:[],saved:0};const tg=runNext(p.id,m,null)||runTargets(p.id,m)[0];const st=runStep(run,tg);
+  const r=tg?rowOf(p.id,m,tg.key):null;push('meterRun',st,{value:r?r[tg.f+'1']??null:null})},
+ runSkip(){const sh=topSheet();const st=sh.params;const tg=runNext(st.pid,st.m,{key:st.key,f:st.f});
+  if(!tg||(tg.key===st.key&&tg.f===st.f)){toast('Không còn đồng hồ nào khác chưa có số');return}runSetTarget(tg.key+'|'+tg.f)},
+ runSave(){
+  const sh=topSheet();const st=sh.params;const run=st.run;const v=sh.draft.value;if(v==null){toast('Nhập chỉ số mới');focusId('meter-val');return}
+  const r=rowOf(st.pid,st.m,st.key);if(!r){pop();return}
+  r[st.f+'1']=v;const nm=addMonth(st.m,1);const nr=rowOf(st.pid,nm,st.key);if(nr){nr[st.f+'0']=v;persist('b',billKey(st.pid,nm))}
+  st.applied=true;if(st.photoId)attachPhoto(st);persist('b',billKey(st.pid,st.m));run.saved++;
+  toast(`Đã ghi ${meterName(st.f).toLowerCase()} P.${r.roomNo}: ${num(v)}`);
+  const tg=runNext(st.pid,st.m,{key:st.key,f:st.f});
+  if(!tg){const q=run.queue.length;pop();toast(`Đã chốt đủ số tất cả đồng hồ${q?`, còn ${q} ảnh chưa dùng`:''}`);return}
+  sh.params=runStep(run,tg);sh.draft={value:null};sh.scroll=0;render();
+  if(run.queue.length)runLoad(sh,run.queue.shift());
+ }
+});
 
 /* =========================== app Android (vỏ WebView, xem thư mục android/) =========================== */
 // Ghi ngay các thay đổi đang chờ khi app bị ẩn, để Android tắt app nền cũng không mất dữ liệu vừa nhập.

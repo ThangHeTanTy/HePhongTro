@@ -12,7 +12,8 @@
 - **Người thuê:** họ tên, ngày dọn vào, số người, người ở cùng, chỉ số điện và nước lúc vào, tiền cọc, ngày trả phòng (cảnh báo khi sắp tới hạn).
 - **Tính tiền hàng tháng:** chốt số điện, nước giếng, nước máy; tiền rác, wifi, phí khác; nợ chuyển kỳ; tính tiền phòng theo ngày ở tháng đầu.
 - **Tính lại hóa đơn** theo từng phòng hoặc cả khu khi đổi giá, có xem trước chênh lệch.
-- **Đọc số đồng hồ qua ảnh** (khi chạy trên Claude): chụp ảnh, Claude đọc số, ảnh được lưu làm bằng chứng.
+- **Ảnh đồng hồ điện, nước:** chụp ảnh hoặc chọn ảnh có sẵn trong máy cho từng đồng hồ. Ảnh được lưu làm bằng chứng, kèm trong ảnh hóa đơn, xem, lưu về máy hoặc xóa được.
+- **Chốt số bằng ảnh:** đi lần lượt từng phòng (chụp, nhập số, *Lưu, tiếp*), hoặc chọn một lúc nhiều ảnh đã chụp sẵn để app gán lần lượt theo thứ tự phòng. Khi chạy trên Claude, Claude tự đọc số trên ảnh.
 - **Xuất Excel** tiền điện, tiền nước, tổng hợp và thu chi; **ảnh hóa đơn** có mã VietQR cho từng phòng; ảnh sao kê công nợ.
 - **Trang người thuê** (khi chạy trên Claude): người thuê nhập mã phòng để xem hóa đơn, mã QR và báo hỏng hóc.
 - **Giấy tờ (.docx):** hợp đồng thuê phòng, tờ khai thay đổi thông tin cư trú (mẫu CT01, Thông tư 53/2025/TT-BCA), biên bản bàn giao phòng.
@@ -48,8 +49,9 @@ Sau đó mở `index.html` bằng trình duyệt, hoặc bật GitHub Pages cho 
 
 | | Trên Claude (artifact) | Trình duyệt / GitHub Pages |
 |---|---|---|
-| Lưu dữ liệu | Theo tài khoản Claude, mở máy khác vẫn thấy | Trong trình duyệt của máy đó, nên sao lưu ra tệp định kỳ |
-| Đọc số đồng hồ qua ảnh | Có | Không |
+| Lưu dữ liệu | Theo tài khoản Claude, mở máy khác vẫn thấy | Trong trình duyệt của máy đó, nên sao lưu ra tệp định kỳ (*Sao lưu kèm ảnh đồng hồ* để giữ cả ảnh) |
+| Chụp, tải ảnh đồng hồ | Có, ảnh lưu theo tài khoản Claude | Có, ảnh lưu trên máy đó (IndexedDB) |
+| Tự đọc số trên ảnh đồng hồ | Có | Không, nhập số khi xem ảnh |
 | Trang người thuê, báo hỏng | Có | Không |
 | Nhắc qua thông báo điện thoại | Có (tác vụ hằng ngày) | Dùng nút thêm vào Google Calendar |
 | Mô hình 3D, tính tiền, Excel, ảnh hóa đơn, giấy tờ, thu chi | Có | Có |
@@ -76,3 +78,4 @@ Sửa trong `src/`, chạy `node build.mjs`, rồi đăng lại `dist/sotro-arti
 - Mẫu hợp đồng chỉ để tham khảo, không thay cho tư vấn pháp lý. Tờ khai CT01 nên đối chiếu với mẫu tại nơi nộp trước khi in.
 - Quét thử mã VietQR bằng app ngân hàng trước khi gửi hóa đơn cho người thuê.
 - Mô hình 3D là mô hình khối để hình dung bố trí, không thay bản vẽ thi công.
+- Trên iPhone, hãy dùng app từ biểu tượng ngoài màn hình chính (Thêm vào màn hình chính). Nếu chỉ mở trong tab Safari, Safari có thể xóa dữ liệu và ảnh của trang sau 7 ngày không mở.

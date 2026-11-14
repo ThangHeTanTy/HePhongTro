@@ -2,11 +2,13 @@ package io.github.thanghetanty.sotro
 
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.ViewGroup
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -47,11 +49,25 @@ class MainActivity : ComponentActivity() {
     // Chọn tệp (khôi phục sao lưu) và chụp ảnh đồng hồ cho thẻ <input type="file">.
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private var cameraUri: Uri? = null
+    // Ảnh chụp khi người dùng chọn "Máy ảnh" trong hộp chọn ảnh (không phải nút Chụp ảnh).
+    private var chooserCameraFile: File? = null
 
     private val pickFile = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
         val cb = fileCallback ?: return@registerForActivityResult
         fileCallback = null
-        cb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(res.resultCode, res.data))
+        val camFile = chooserCameraFile
+        chooserCameraFile = null
+        val data = res.data
+        val clip = data?.clipData
+        val uris: Array<Uri>? = when {
+            res.resultCode != RESULT_OK -> null
+            // Chọn nhiều ảnh cùng lúc
+            clip != null && clip.itemCount > 0 -> (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }.toTypedArray()
+            data?.data != null -> arrayOf(data.data!!)
+            camFile != null && camFile.length() > 0 -> arrayOf(FileProvider.getUriForFile(this, "$packageName.files", camFile))
+            else -> null
+        }
+        cb.onReceiveValue(uris?.takeIf { it.isNotEmpty() })
     }
 
     private val takePicture = registerForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
@@ -188,10 +204,18 @@ class MainActivity : ComponentActivity() {
 
             if (params.isCaptureEnabled && imagesOnly && launchCamera()) return true
 
-            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            val pick = Intent(Intent.ACTION_GET_CONTENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = if (imagesOnly) "image/*" else "*/*"
                 putExtra(Intent.EXTRA_ALLOW_MULTIPLE, params.mode == FileChooserParams.MODE_OPEN_MULTIPLE)
+            }
+            // Với ảnh: hộp chọn có thêm Máy ảnh, giống cách iPhone cho chọn Chụp ảnh hoặc Thư viện ảnh.
+            val intent = if (imagesOnly) {
+                Intent.createChooser(pick, "Ảnh đồng hồ").apply {
+                    cameraIntentForChooser()?.let { putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(it)) }
+                }
+            } else {
+                pick
             }
             return try {
                 pickFile.launch(intent)
@@ -204,11 +228,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun newCameraFile(): File {
+        val dir = File(cacheDir, "camera").apply { mkdirs() }
+        dir.listFiles()?.forEach { it.delete() }
+        return File(dir, "dong-ho-${System.currentTimeMillis()}.jpg")
+    }
+
+    private fun cameraIntentForChooser(): Intent? = try {
+        val file = newCameraFile()
+        val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
+        chooserCameraFile = file
+        Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+            putExtra(MediaStore.EXTRA_OUTPUT, uri)
+            clipData = ClipData.newRawUri("", uri)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    } catch (e: Exception) {
+        chooserCameraFile = null
+        null
+    }
+
     private fun launchCamera(): Boolean {
         return try {
-            val dir = File(cacheDir, "camera").apply { mkdirs() }
-            dir.listFiles()?.forEach { it.delete() }
-            val file = File(dir, "dong-ho-${System.currentTimeMillis()}.jpg")
+            val file = newCameraFile()
             val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
             cameraUri = uri
             takePicture.launch(uri)
