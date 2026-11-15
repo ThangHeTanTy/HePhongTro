@@ -280,3 +280,10 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
 .photo-big.meter{max-height:42vh}
 .photo-redo{display:flex;gap:8px;margin:8px 0 10px}
 .photo-redo .btn{flex:1}
+/* hướng dẫn từng bước */
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.5}
+ol.steps .btn{margin-top:6px}
+.banner.wide{flex-wrap:wrap}
+.banner.wide>.grow{flex:1 1 200px}
+.banner.wide>.btns{flex-basis:100%;justify-content:flex-end}
+.banner.wide>.btns .btn{flex:0 1 auto}

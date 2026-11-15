@@ -22,6 +22,8 @@ Cần Android 8.0 trở lên.
 | Xuất Excel, ảnh hóa đơn, Word, sao lưu | Lưu vào **Tải xuống › SoTro**, có nút **Chia sẻ** (gửi Zalo, Messenger…) và **Mở** | Tải về qua Safari |
 | Ảnh đồng hồ | Nút ảnh trên từng dòng cho chọn Máy ảnh hoặc ảnh có sẵn; *Chốt số bằng ảnh* chọn được nhiều ảnh một lúc | Giống vậy (Chụp ảnh hoặc Thư viện ảnh) |
 | Sao lưu kèm ảnh (.zip) | Có | Có |
+| Tự sao lưu Google Drive | Có | Có |
+| Tự lưu bản sao mỗi ngày vào máy | Có, *Tải xuống › SoTro › SaoLuuTuDong*, còn lại sau khi gỡ app | Không |
 | Không có mạng | Vẫn chạy: thư viện 3D, Excel, Word, mã QR và phông chữ có sẵn trong app | Cần mạng lần đầu để tải thư viện |
 | Nút Quay lại | Đóng màn hình đang mở, rồi về Trang chủ, rồi thoát | — |
 

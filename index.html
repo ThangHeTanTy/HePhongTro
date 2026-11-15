@@ -293,6 +293,13 @@ details>summary{list-style:none}details>summary::-webkit-details-marker{display:
 .photo-big.meter{max-height:42vh}
 .photo-redo{display:flex;gap:8px;margin:8px 0 10px}
 .photo-redo .btn{flex:1}
+/* hướng dẫn từng bước */
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.5}
+ol.steps .btn{margin-top:6px}
+.banner.wide{flex-wrap:wrap}
+.banner.wide>.grow{flex:1 1 200px}
+.banner.wide>.btns{flex-basis:100%;justify-content:flex-end}
+.banner.wide>.btns .btn{flex:0 1 auto}
 </style>
 </head>
 <body>
@@ -395,8 +402,8 @@ function fixActive(){if(!S.props[S.settings.activePid]){const f=Object.values(S.
 function P(){return S.props[S.settings.activePid]||null}
 function saveLocal(){if(mode==='local')lsSet(LS_LOCAL,snapState());else if(mode==='cloud')lsSet(LS_CACHE,Object.assign({uid:myId},snapState()))}
 const docId=(k,id)=>k==='p'?'p_'+id:k==='b'?'b_'+id:'settings';
-function persist(k,id){touch();pending.set(docId(k,id),'set');sched()}
-function persistDel(k,id){touch();pending.set(docId(k,id),'del');sched()}
+function persist(k,id){touch();pending.set(docId(k,id),'set');sched();driveDirty()}
+function persistDel(k,id){touch();pending.set(docId(k,id),'del');sched();driveDirty()}
 function sched(){setSync(mode==='local'?'local':'saving');clearTimeout(flushT);flushT=setTimeout(flush,450)}
 function bodyOf(id){if(id==='settings')return S.settings;if(id.startsWith('p_'))return S.props[id.slice(2)]||null;if(id.startsWith('b_'))return S.bills[id.slice(2)]||null;return null}
 async function flush(){
@@ -733,6 +740,7 @@ function startLocal(){
   if(d&&d.props)loadInto(d);else{loadInto(null);loadDemoInto();saveLocal()}
   setSync('local');render();
   setTimeout(cleanLocalPhotos,8000);
+  backupBoot();
 }
 
 /* =========================== rendering =========================== */
@@ -765,7 +773,7 @@ function shell(){
   return`<header class="topbar"><div class="wrap">
     <button class="prop-switch" data-act="openProps" aria-label="Đổi khu trọ"><span class="logo">${esc(initials(p.name))}</span><span class="t"><small>Khu trọ${Object.keys(S.props).length>1?' · '+Object.keys(S.props).length+' khu':''}</small><b>${esc(p.name)}</b></span>${ic('down',18)}</button>
     <span id="sync" class="sync ${syncState}">${syncHTML()}</span></div></header>
-  <main class="wrap">${p.demo?`<div class="banner">${ic('alert',18)}<span class="grow">Đây là dữ liệu mẫu để xem thử.</span><button class="btn sm" data-act="clearDemo">Xóa dữ liệu mẫu</button></div>`:''}
+  <main class="wrap">${p.demo?`<div class="banner wide">${ic('alert',18)}<span class="grow">Đây là dữ liệu mẫu để xem thử.</span><div class="btns"><button class="btn sm" data-act="clearDemo">Xóa dữ liệu mẫu</button><button class="btn sm" data-act="openRestoreHub">${ic('upload',16)}Khôi phục dữ liệu cũ</button></div></div>`:''}${ui.tab==='home'?backupBanner():''}
   ${ui.tab==='home'?tabHome(p):ui.tab==='rooms'?tabRooms(p):ui.tab==='bills'?tabBills(p):ui.tab==='money'?tabMoney(p):tabSettings(p)}</main>
   <nav class="nav"><div class="wrap">${[['home','home','Tổng quan',alerts],['rooms','door','Phòng',0],['bills','receipt','Hóa đơn',0],['money','chart','Thu chi',0],['settings','sliders','Thiết lập',0]].map(([k,i,l,b])=>`<button class="${ui.tab===k?'on':''}" data-act="tab" data-tab="${k}">${ic(i,22)}<span>${l}</span>${b?`<span class="dot">${b}</span>`:''}</button>`).join('')}</div></nav>`;
 }
@@ -774,7 +782,7 @@ function emptyState(){
   return`<main class="wrap"><div class="empty" style="min-height:80vh;justify-content:center">
    <svg width="160" height="110" viewBox="0 0 160 110" aria-hidden="true"><rect x="10" y="20" width="140" height="86" rx="6" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-width="2"/>${[0,1,2,3].map(i=>`<rect x="${22+i*32}" y="34" width="24" height="30" rx="3" fill="var(--accent)" fill-opacity="${i===2?.25:.9}"/><text x="${34+i*32}" y="53" font-size="9" text-anchor="middle" fill="var(--accent-ink)" font-family="IBM Plex Mono,monospace">${101+i}</text>`).join('')}${[0,1,2,3].map(i=>`<rect x="${22+i*32}" y="70" width="24" height="30" rx="3" fill="var(--accent)" fill-opacity="${i===0?.25:.9}"/><text x="${34+i*32}" y="89" font-size="9" text-anchor="middle" fill="var(--accent-ink)" font-family="IBM Plex Mono,monospace">${201+i}</text>`).join('')}<path d="M4 22 80 4l76 18" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-width="2"/></svg>
    <h2>Sổ Trọ</h2><p>Quản lý nhiều khu trọ, dựng mô hình 3D phòng, chốt số điện nước, tính tiền và gửi hóa đơn cho từng người thuê.</p>
-   ${canWrite===false?'':`<div class="stack" style="width:100%;max-width:320px"><button class="btn pri block" data-act="newProp">${ic('plus')}Tạo khu trọ đầu tiên</button><button class="btn block" data-act="loadDemo">Xem thử với dữ liệu mẫu</button></div>`}${dbRef?codeEntry():''}
+   ${canWrite===false?'':`<div class="stack" style="width:100%;max-width:320px"><button class="btn pri block" data-act="newProp">${ic('plus')}Tạo khu trọ đầu tiên</button><button class="btn block" data-act="loadDemo">Xem thử với dữ liệu mẫu</button>${mode==='local'?`<button class="btn block" data-act="openRestoreHub">${ic('upload',18)}Khôi phục dữ liệu đã sao lưu</button>`:''}</div>`}${dbRef?codeEntry():''}
    <p class="small">${mode==='cloud'?'Dữ liệu được lưu riêng cho tài khoản của bạn.':'Dữ liệu được lưu trên máy này.'}</p></div></main>`;
 }
 function alertCount(p){const ad=S.settings.alertDays||30;return p.rooms.filter(r=>{const d=endDays(r.tenant);return d!=null&&d<=ad}).length}
@@ -880,6 +888,7 @@ function tabSettings(p){
   <div class="list">
    ${li('openReadSet','camera','Đọc số trên ảnh',readEngine()?'Tự đọc: '+ENGINE_NAME[readEngine()]:'Đang tắt, nhập số bằng tay')}
    ${androidVersion()?li('checkUpdate','refresh','Kiểm tra cập nhật',`App Android bản ${esc(androidVersion())} · tự kiểm tra mỗi ngày`):''}
+   ${mode==='local'?li('openDrive','upload','Sao lưu Google Drive',driveStatusText()):''}
    ${li('backup','save','Sao lưu ra tệp',`Tệp .json chứa toàn bộ khu trọ và hóa đơn`)}
    ${li('backupZip','img','Sao lưu kèm ảnh đồng hồ',`Tệp .zip gồm dữ liệu và ảnh đồng hồ lưu trên máy này`)}
    <label class="li" style="cursor:pointer"><span class="mi" style="background:var(--accent-soft);color:var(--accent);width:32px;height:32px;border-radius:9px">${ic('upload',18)}</span><span class="grow"><b>Khôi phục từ tệp</b><span>Thay toàn bộ dữ liệu hiện tại bằng tệp sao lưu</span></span><input type="file" accept=".json,.zip,application/json,application/zip" id="restore-file" data-ch="restore" hidden></label>
@@ -1215,14 +1224,14 @@ const A={
  saveImg(){const sh=topSheet();const s=sh.params;if(s.kind==='statement'){const room=S.props[s.pid].rooms.find(x=>x.id===s.rid);statementCanvas(s.pid,s.rid).then(cv=>cv.toBlob(b=>saveFile(`SaoKe_P${slug(room.no)}_${todayISO()}.png`,b),'image/png'));return}const r=rowOf(s.pid,s.month,s.key);invoiceCanvas(s.pid,s.month,s.key).then(cv=>cv.toBlob(b=>saveFile(`HoaDon_P${slug(r.roomNo)}_${s.month}.png`,b),'image/png'))},
  excel(){exportExcel(P().id,ui.month)},
  zipImgs(){zipImages(P().id,ui.month)},
- backup(){saveFile(`SoTro_saoluu_${todayISO()}.json`,backupJSON())},
+ async backup(){if(await saveFile(`SoTro_saoluu_${todayISO()}.json`,backupJSON()))markBackedUp()},
  async backupZip(){
   const ids=[...photoRefs()].filter(isLocalPh);toast('Đang đóng gói '+ids.length+' ảnh…');
   try{await loadScript(URLS.zip)}catch(e){toast('Không tải được thư viện nén. Kiểm tra kết nối mạng.');return}
   const z=new JSZip();z.file('sotro.json',backupJSON());let n=0;
   for(const id of ids){const v=await phGet(id).catch(()=>null);if(v){z.file('anh/'+id+'.jpg',v.buf);n++}}
   const blob=await z.generateAsync({type:'blob',mimeType:'application/zip'});
-  saveFile(`SoTro_saoluu_kemanh_${todayISO()}.zip`,blob);
+  if(await saveFile(`SoTro_saoluu_kemanh_${todayISO()}.zip`,blob))markBackedUp();
  },
  confirmOk(){const fn=confirmFn;confirmFn=null;ui.sheets.pop();if(fn)fn();else render()}
 };
@@ -1345,6 +1354,13 @@ async function zipImages(pid,month){
   const zip=new window.JSZip();for(const [k,r] of rows){const cv=await invoiceCanvas(pid,month,k);const b=await new Promise(res=>cv.toBlob(res,'image/png'));zip.file(`HoaDon_P${slug(r.roomNo)}_${month}.png`,b)}
   const blob=await zip.generateAsync({type:'blob'});saveFile(`HoaDon_${slug(S.props[pid].name)}_${month}.zip`,blob);
 }
+// Thay toàn bộ dữ liệu bằng bản sao lưu d (đã kiểm d.app==='sotro').
+function applyBackup(d){
+  for(const k of Object.keys(S.props))if(!d.props[k])persistDel('p',k);for(const k of Object.keys(S.bills))if(!(d.bills||{})[k])persistDel('b',k);
+  S.props=d.props;Object.values(S.props).forEach(normProp);S.bills=d.bills||{};S.settings=Object.assign({alertDays:30},d.settings||{});fixActive();
+  for(const k of Object.keys(S.props))persist('p',k);for(const k of Object.keys(S.bills))persist('b',k);persist('s');ui.sheets=[];ui.tab='home';render();
+  markBackedUp();
+}
 function backupJSON(){return JSON.stringify({app:'sotro',version:1,exportedAt:new Date().toISOString(),props:S.props,bills:S.bills,settings:S.settings},null,1)}
 async function restoreFile(el){
   const f=el.files&&el.files[0];el.value='';if(!f)return;let d,photos=[];
@@ -1356,9 +1372,7 @@ async function restoreFile(el){
   }catch(e){toast('Tệp không đúng định dạng sao lưu');return}
   if(!d||d.app!=='sotro'||!d.props){toast('Đây không phải tệp sao lưu của Sổ Trọ');return}
   ask('Khôi phục dữ liệu?',`Tệp có ${Object.keys(d.props).length} khu trọ${photos.length?` và ${photos.length} ảnh đồng hồ`:''}, sao lưu lúc ${new Date(d.exportedAt).toLocaleString('vi-VN')}. Toàn bộ dữ liệu hiện tại sẽ được thay thế.`,'Khôi phục',async()=>{
-    for(const k of Object.keys(S.props))if(!d.props[k])persistDel('p',k);for(const k of Object.keys(S.bills))if(!(d.bills||{})[k])persistDel('b',k);
-    S.props=d.props;S.bills=d.bills||{};S.settings=Object.assign({alertDays:30},d.settings||{});fixActive();
-    for(const k of Object.keys(S.props))persist('p',k);for(const k of Object.keys(S.bills))persist('b',k);persist('s');ui.sheets=[];ui.tab='home';render();
+    applyBackup(d);
     let ok=0;for(const [id,file] of photos){try{await phPut(id,{buf:await file.async('arraybuffer'),type:'image/jpeg',at:Date.now()});ok++}catch(e){}}
     if(ok)render();toast(photos.length?`Đã khôi phục dữ liệu và ${ok}/${photos.length} ảnh`:'Đã khôi phục dữ liệu')},true);
 }
@@ -2382,6 +2396,154 @@ Object.assign(A,{
   sh.params=runStep(run,tg);sh.draft={value:null};sh.scroll=0;render();
   if(run.queue.length)runLoad(sh,run.queue.shift());
  }
+});
+
+/* =========================== sao lưu: nhắc nhở, Google Drive, tự sao lưu trên Android =========================== */
+// Ba lớp bảo vệ khi chạy ngoài Claude (dữ liệu chỉ nằm trên máy):
+//  A. Google Drive của chính chủ trọ qua Google Apps Script (src/drive-script.gs): tự sao lưu khi có thay đổi và mỗi ngày.
+//  B. App Android tự ghi bản sao mỗi ngày vào Tải xuống/SoTro/SaoLuuTuDong (còn lại sau khi gỡ app).
+//  C. Nhắc trên Tổng quan khi lâu chưa sao lưu.
+const LS_BK='sotro.backup.v1',LS_DRIVE='sotro.drive.v1';
+const DRIVE_SCRIPT="// Sổ Trọ – tự sao lưu lên Google Drive của bạn.\n//\n// Đoạn mã này chạy trong tài khoản Google của chính bạn (script.google.com) và chỉ ghi vào\n// một thư mục \"Sổ Trọ - Sao lưu\" trong Drive của bạn. Dữ liệu không đi qua máy chủ nào khác.\n// KEY là mật mã riêng do app Sổ Trọ tạo: chỉ ai biết mật mã này mới đọc, ghi được bản sao lưu.\n// Đừng chia sẻ đoạn mã này hay đường link triển khai cho người khác.\n\nvar KEY = '__KEY__';\nvar FOLDER = 'Sổ Trọ - Sao lưu';\nvar KEEP_LATEST = 20;   // luôn giữ 20 bản mới nhất\nvar KEEP_DAYS = 90;     // và mỗi ngày một bản trong 90 ngày gần đây\n\nfunction doPost(e) {\n  var req;\n  try { req = JSON.parse(e.postData.contents); } catch (err) { return out_({ ok: false, error: 'bad_request' }); }\n  if (!req || req.key !== KEY) return out_({ ok: false, error: 'bad_key' });\n  var lock = LockService.getScriptLock();\n  if (!lock.tryLock(30000)) return out_({ ok: false, error: 'busy' });\n  try {\n    var root = folder_();\n    switch (req.action) {\n      case 'ping':\n        return out_({ ok: true, folder: root.getUrl(), email: Session.getEffectiveUser().getEmail() });\n      case 'save': {\n        if (!/^SoTro_[\\w-]+\\.json$/.test(req.name || '')) return out_({ ok: false, error: 'bad_name' });\n        var f = root.createFile(Utilities.newBlob(req.json, 'application/json', req.name));\n        prune_(root);\n        return out_({ ok: true, id: f.getId(), size: f.getSize() });\n      }\n      case 'list': {\n        var list = backups_(root).map(function (x) {\n          return { id: x.getId(), name: x.getName(), size: x.getSize(), time: x.getDateCreated().getTime() };\n        });\n        return out_({ ok: true, files: list });\n      }\n      case 'get': {\n        var file = DriveApp.getFileById(req.id);\n        if (!inFolder_(file, root)) return out_({ ok: false, error: 'not_found' });\n        return out_({ ok: true, json: file.getBlob().getDataAsString('UTF-8') });\n      }\n      case 'photos': {\n        var names = [], it = photoFolder_(root).getFiles();\n        while (it.hasNext()) names.push(it.next().getName());\n        return out_({ ok: true, names: names });\n      }\n      case 'putPhoto': {\n        if (!/^l_[\\w]+\\.jpg$/.test(req.name || '')) return out_({ ok: false, error: 'bad_name' });\n        var pf = photoFolder_(root);\n        if (!pf.getFilesByName(req.name).hasNext()) {\n          pf.createFile(Utilities.newBlob(Utilities.base64Decode(req.data), req.type || 'image/jpeg', req.name));\n        }\n        return out_({ ok: true });\n      }\n      case 'getPhoto': {\n        var pit = photoFolder_(root).getFilesByName(req.name || '');\n        if (!pit.hasNext()) return out_({ ok: false, error: 'not_found' });\n        var blob = pit.next().getBlob();\n        return out_({ ok: true, type: blob.getContentType(), data: Utilities.base64Encode(blob.getBytes()) });\n      }\n      default:\n        return out_({ ok: false, error: 'bad_action' });\n    }\n  } catch (err) {\n    return out_({ ok: false, error: 'server', message: String(err && err.message || err) });\n  } finally {\n    lock.releaseLock();\n  }\n}\n\n// Mở đường link bằng trình duyệt chỉ để kiểm tra đã triển khai đúng.\nfunction doGet() {\n  return ContentService.createTextOutput('Sổ Trọ: sao lưu Google Drive đã sẵn sàng. Dán đường link này vào app.');\n}\n\nfunction folder_() {\n  var it = DriveApp.getFoldersByName(FOLDER);\n  return it.hasNext() ? it.next() : DriveApp.createFolder(FOLDER);\n}\n\nfunction photoFolder_(root) {\n  var it = root.getFoldersByName('anh');\n  return it.hasNext() ? it.next() : root.createFolder('anh');\n}\n\nfunction backups_(root) {\n  var files = [], it = root.getFiles();\n  while (it.hasNext()) {\n    var f = it.next();\n    if (/^SoTro_.*\\.json$/.test(f.getName())) files.push(f);\n  }\n  files.sort(function (a, b) { return b.getDateCreated().getTime() - a.getDateCreated().getTime(); });\n  return files;\n}\n\nfunction inFolder_(file, root) {\n  var ps = file.getParents();\n  while (ps.hasNext()) if (ps.next().getId() === root.getId()) return true;\n  return false;\n}\n\n// Giữ KEEP_LATEST bản mới nhất, cộng bản mới nhất của mỗi ngày trong KEEP_DAYS ngày; còn lại cho vào thùng rác.\nfunction prune_(root) {\n  var files = backups_(root), seenDay = {}, now = Date.now();\n  files.forEach(function (f, i) {\n    var t = f.getDateCreated().getTime();\n    var day = Utilities.formatDate(f.getDateCreated(), Session.getScriptTimeZone(), 'yyyy-MM-dd');\n    var keep = i < KEEP_LATEST || (!seenDay[day] && now - t < KEEP_DAYS * 86400000);\n    seenDay[day] = true;\n    if (!keep) f.setTrashed(true);\n  });\n}\n\nfunction out_(o) {\n  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);\n}\n";
+function bkGet(){return lsGet(LS_BK)||{}}
+function bkSet(o){lsSet(LS_BK,Object.assign(bkGet(),o))}
+function markBackedUp(){bkSet({last:Date.now()})}
+function hasRealData(){return Object.values(S.props).some(p=>!p.demo)}
+function driveRaw(){return lsGet(LS_DRIVE)||{}}
+function driveCfg(){const c=driveRaw();return c.url&&c.key?c:null}
+function driveSet(o){lsSet(LS_DRIVE,Object.assign(driveRaw(),o))}
+const fmtTime=t=>t?new Date(t).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'}):'';
+function driveStatusText(){const c=driveCfg();if(!c)return'Chưa cài · tự sao lưu lên Drive của bạn, lấy lại khi gỡ app hay đổi máy';if(c.lastErr&&(c.errAt||0)>(c.last||0))return'Lỗi: '+c.lastErr;return c.last?'Đã sao lưu lúc '+fmtTime(c.last):'Đã kết nối, chưa sao lưu lần nào'}
+function backupBoot(){if(!bkGet().since)bkSet({since:Date.now()});
+  const run=()=>{autoDrive();androidAutoBackup()};setTimeout(run,15000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(run,5000)})}
+
+// ---------- C. nhắc sao lưu ----------
+function backupBanner(){
+  if(mode!=='local'||!hasRealData())return'';const b=bkGet(),now=Date.now();if((b.snooze||0)>now)return'';const c=driveCfg();
+  if(c){const age=now-(c.last||b.since||now);if(age<3*864e5)return'';
+    return`<div class="banner wide">${ic('alert',18)}<span class="grow">Sao lưu Google Drive ${c.last?`đã ${Math.floor(age/864e5)} ngày chưa chạy được`:'chưa chạy được lần nào'}.${c.lastErr?' '+esc(c.lastErr):''}</span><div class="btns"><button class="btn sm" data-act="openDrive">Xem</button></div></div>`}
+  // App Android tự lưu mỗi ngày thì chỉ nhắc mỗi tháng (bản tự lưu nằm trên máy, mất máy vẫn mất).
+  const autoOk=b.autoTs&&now-b.autoTs<3*864e5;const last=b.last||b.since||now;const days=Math.floor((now-last)/864e5);if(days<(autoOk?30:7))return'';
+  return`<div class="banner wide">${ic('alert',18)}<span class="grow">${b.last?`Đã ${days} ngày chưa sao lưu ra ngoài máy.`:'Bạn chưa sao lưu dữ liệu ra ngoài máy lần nào.'} Gỡ app, mất máy hay lỡ xóa dữ liệu trình duyệt là mất hết phòng, hóa đơn, ảnh đồng hồ.</span><div class="btns"><button class="btn sm" data-act="openDrive">${ic('upload',16)}Tự sao lưu lên Drive</button><button class="btn sm" data-act="backupZip">Sao lưu ra tệp</button><button class="btn sm" data-act="snoozeBackup">Để sau</button></div></div>`;
+}
+
+// ---------- A. Google Drive ----------
+async function driveCall(c,action,extra){
+  let r;try{r=await fetch(c.url,{method:'POST',body:JSON.stringify(Object.assign({key:c.key,action},extra||{}))})}catch(e){throw{code:'offline'}}
+  if(!r.ok)throw{code:'http'};let j;try{j=await r.json()}catch(e){throw{code:'not_script'}}
+  if(!j||!j.ok)throw{code:(j&&j.error)||'error',message:j&&j.message};return j;
+}
+const DRIVE_ERR={offline:'Không kết nối được Google. Kiểm tra mạng, và script phải triển khai với “Người có quyền truy cập: Bất kỳ ai”.',http:'Google từ chối yêu cầu, kiểm tra lại URL ứng dụng web.',not_script:'URL này không phải ứng dụng web của script Sổ Trọ.',bad_key:'Mật mã không khớp: script trên Google không phải bản chép từ máy này. Chép mã script lại và triển khai lại.',busy:'Drive đang bận, app sẽ thử lại sau.',server:'Script gặp lỗi trên Google.',not_found:'Không tìm thấy tệp trên Drive.',bad_backup:'Tệp trên Drive không phải bản sao lưu Sổ Trọ.'};
+const driveErr=e=>DRIVE_ERR[e&&e.code]||('Lỗi không rõ'+(e&&e.message?': '+e.message:''));
+const DRIVE_URL_RE=/^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/[\w-]+\/exec$/;
+let driveT=null,driveBusy=false,driveProg='';
+function driveDirty(){if(mode!=='local'||!driveCfg())return;if(!driveRaw().dirty)driveSet({dirty:true});clearTimeout(driveT);driveT=setTimeout(autoDrive,60000)}
+// Tự sao lưu: sau khi dữ liệu đổi (cách lần trước ít nhất 10 phút), và ít nhất mỗi ngày một lần.
+function autoDrive(){const c=driveCfg();if(mode!=='local'||!c||driveBusy||!hasRealData())return;const now=Date.now();
+  if(!c.dirty&&now-(c.last||0)<864e5)return;const wait=(c.last||0)+10*60000-now;
+  if(c.dirty&&wait>0){clearTimeout(driveT);driveT=setTimeout(autoDrive,wait+1000);return}
+  driveBackup(false)}
+function refreshDriveSheet(){const sh=topSheet();if(sh&&sh.type==='drive')requestRender()}
+async function driveBackup(manual){
+  const c=driveCfg();if(!c)return false;if(driveBusy){if(manual)toast('Đang sao lưu, chờ chút…');return false}
+  if(!hasRealData()){if(manual)toast('Chưa có dữ liệu của bạn để sao lưu (đang là dữ liệu mẫu)');return false}
+  driveBusy=true;
+  try{
+    // Ảnh đồng hồ chỉ tải lên một lần, bản sao lưu dữ liệu nhỏ nên lưu nhiều bản.
+    const have=new Set(c.photos||[]);const ids=[...photoRefs()].filter(id=>isLocalPh(id)&&!have.has(id));let i=0;
+    for(const id of ids){i++;driveProg=`Đang tải ảnh đồng hồ ${i}/${ids.length}…`;refreshDriveSheet();const v=await phGet(id).catch(()=>null);if(!v)continue;
+      await driveCall(c,'putPhoto',{name:id+'.jpg',type:v.type||'image/jpeg',data:await blobToBase64(new Blob([v.buf]))});have.add(id);if(i%5===0)driveSet({photos:[...have]})}
+    driveSet({photos:[...have]});driveProg='Đang lưu dữ liệu…';refreshDriveSheet();
+    const d=new Date();const json=backupJSON();driveSet({dirty:false});
+    try{await driveCall(c,'save',{name:`SoTro_${todayISO()}_${pad(d.getHours())}${pad(d.getMinutes())}.json`,json})}catch(e){driveSet({dirty:true});throw e}
+    driveSet({last:Date.now(),lastErr:''});markBackedUp();if(manual)toast('Đã sao lưu lên Google Drive');return true;
+  }catch(e){driveSet({lastErr:driveErr(e),errAt:Date.now()});if(manual)toast('Chưa sao lưu được: '+driveErr(e));return false}
+  finally{driveBusy=false;driveProg='';refreshDriveSheet()}
+}
+function driveKey(){let k=driveRaw().pendingKey;if(!k){k=newToken()+newToken()+newToken();driveSet({pendingKey:k})}return k}
+async function loadDriveList(sh){try{sh.params.files=(await driveCall(driveCfg(),'list')).files}catch(e){sh.params.err=driveErr(e)}if(topSheet()===sh)render()}
+async function restorePhotosFromDrive(){
+  const c=driveCfg();if(!c)return;const ids=[...photoRefs()].filter(isLocalPh);let names;
+  try{names=new Set((await driveCall(c,'photos')).names)}catch(e){toast('Đã khôi phục dữ liệu, chưa tải được ảnh: '+driveErr(e));return}
+  const need=[];for(const id of ids){const v=await phGet(id).catch(()=>null);if(!v&&names.has(id+'.jpg'))need.push(id)}
+  driveSet({photos:ids.filter(id=>names.has(id+'.jpg'))});
+  if(!need.length){toast('Đã khôi phục dữ liệu');return}
+  toast(`Đã khôi phục dữ liệu. Đang tải ${need.length} ảnh đồng hồ…`);let ok=0;
+  for(const id of need){try{const g=await driveCall(c,'getPhoto',{name:id+'.jpg'});const bin=Uint8Array.from(atob(g.data),ch=>ch.charCodeAt(0));await phPut(id,{buf:bin.buffer,type:g.type||'image/jpeg',at:Date.now()});ok++}catch(e){}}
+  render();toast(`Đã tải ${ok}/${need.length} ảnh đồng hồ từ Drive`);
+}
+async function driveConnectWith(url,key,thenRestore){
+  if(!DRIVE_URL_RE.test(url)){toast('URL phải có dạng https://script.google.com/macros/s/…/exec');return}
+  toast('Đang kết nối Google Drive…');let j;
+  try{j=await driveCall({url,key},'ping')}catch(e){toast(driveErr(e));return}
+  let photos=[];try{photos=(await driveCall({url,key},'photos')).names.map(n=>n.replace(/\.jpg$/,''))}catch(e){}
+  driveSet({url,key,folder:j.folder||'',email:j.email||'',pendingKey:null,photos,last:0,lastErr:'',dirty:true});
+  if(thenRestore){ui.sheets=ui.sheets.filter(x=>x.type!=='drive'&&x.type!=='restoreHub');push('drive',{},{});push('driveRestore',{files:null,err:''});loadDriveList(topSheet());toast('Đã kết nối. Chọn bản sao lưu để khôi phục.')}
+  else{render();toast('Đã kết nối Google Drive');driveBackup(true)}
+}
+
+// ---------- B. App Android tự ghi bản sao mỗi ngày ----------
+async function androidAutoBackup(){
+  if(mode!=='local'||!window.SoTroAndroid||!SoTroAndroid.autoBackup||!hasRealData())return;
+  const b=bkGet();if(b.autoDay===todayISO())return;
+  try{await loadScript(URLS.zip)}catch(e){return}
+  const z=new JSZip();z.file('sotro.json',backupJSON());
+  // Kèm ảnh đồng hồ 2 tháng gần nhất cho tệp không quá lớn; đủ ảnh thì dùng Google Drive.
+  const ms=new Set([curMonth(),addMonth(curMonth(),-1)]);
+  for(const bl of Object.values(S.bills)){if(!ms.has(bl.month))continue;for(const r of Object.values(bl.rooms||{}))for(const id of Object.values(r.photos||{}))if(isLocalPh(id)){const v=await phGet(id).catch(()=>null);if(v)z.file('anh/'+id+'.jpg',v.buf)}}
+  let ok=false;try{ok=SoTroAndroid.autoBackup(`SoTro_tudong_${todayISO()}.zip`,await blobToBase64(await z.generateAsync({type:'blob'})))}catch(e){}
+  if(ok)bkSet({autoDay:todayISO(),autoTs:Date.now()});
+}
+
+Object.assign(SHEETS,{
+ drive(sh){const c=driveCfg();const d=sh.draft;
+  if(!c){const key=driveKey();
+   return{title:'Sao lưu Google Drive',body:`<p>App tự sao lưu dữ liệu và ảnh đồng hồ lên <b>Google Drive của chính bạn</b>: sau mỗi lần thay đổi (cách nhau ít nhất 10 phút) và mỗi ngày. Gỡ app, mất máy hay lỡ xóa dữ liệu web vẫn lấy lại được. Dữ liệu không đi qua máy chủ nào khác.</p>
+    <div class="group"><h4>${ic('key',18)}Đã cài trước đây, giờ cài lại app hoặc đổi máy?</h4>${fld('Mã kết nối','code',d.code,{full:1,ph:'https://script.google.com/…/exec#…',hint:'Mã kết nối có trong mục này trên máy cũ. Mất mã thì xem cách lấy lại ở cuối trang.'})}<button class="btn" data-act="driveConnectCode">${ic('upload',18)}Kết nối và khôi phục</button></div>
+    <div class="group"><h4>${ic('cal',18)}Cài lần đầu, khoảng 5 phút</h4><ol class="steps">
+     <li>Bấm <b>Chép mã script</b>. <button class="btn sm pri" data-act="driveCopyScript">${ic('copy',16)}Chép mã script</button></li>
+     <li>Mở <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener"><b>script.google.com</b></a> bằng Gmail của bạn (tạo <b>Dự án mới</b>). Xóa hết chữ có sẵn, dán mã vừa chép, bấm biểu tượng <b>Lưu</b> (đĩa mềm).</li>
+     <li>Bấm <b>Triển khai › Tùy chọn triển khai mới</b>. Ở “Chọn loại”, bấm bánh răng › <b>Ứng dụng web</b>. “Thực thi với tư cách”: <b>Tôi</b>. “Người có quyền truy cập”: <b>Bất kỳ ai</b>. Bấm <b>Triển khai</b>.</li>
+     <li>Google hỏi cấp quyền: bấm <b>Cấp quyền truy cập</b>, chọn tài khoản. Nếu thấy “Google chưa xác minh ứng dụng này”: <b>Nâng cao › Đi tới… (không an toàn) › Cho phép</b>. Đây là script của chính bạn, chỉ ghi vào thư mục “Sổ Trọ - Sao lưu”.</li>
+     <li>Chép <b>URL ứng dụng web</b> (đuôi <span class="mono">/exec</span>), dán vào ô dưới rồi bấm <b>Kết nối</b>.</li></ol>
+     ${fld('URL ứng dụng web','url',d.url,{full:1,ph:'https://script.google.com/macros/s/…/exec'})}<button class="btn pri" data-act="driveConnect">${ic('check',18)}Kết nối</button></div>
+    <details class="small muted"><summary style="cursor:pointer;font-weight:600">Mất mã kết nối?</summary><p style="margin-top:6px">Mở script.google.com › dự án đã tạo › <b>Triển khai › Quản lý các bản triển khai</b> để chép lại URL; mật mã nằm ở dòng <span class="mono">var KEY</span> trong mã. Mã kết nối = URL + dấu # + mật mã. Hoặc mở Google Drive › thư mục “Sổ Trọ - Sao lưu”, tải tệp .json mới nhất rồi dùng <b>Khôi phục từ tệp</b> (cách này không kèm ảnh).</p></details>
+    <p class="hint">Mật mã của máy này: <span class="mono">${esc(key.slice(0,6))}…</span> (đã có sẵn trong mã script).</p>`}}
+  const err=c.lastErr&&(c.errAt||0)>(c.last||0);const code=c.url+'#'+c.key;
+  return{title:'Sao lưu Google Drive',body:`<div class="card stack"><div class="row"><span class="mi" style="background:var(--${err?'warn':'ok'}-soft);color:var(--${err?'warn':'ok'});width:36px;height:36px;border-radius:10px;display:grid;place-items:center">${ic(err?'alert':'check',20)}</span><div class="grow"><b>${err?'Lần sao lưu gần nhất bị lỗi':'Đang tự sao lưu'}</b><p class="small muted">${c.email?esc(c.email)+' · ':''}${c.last?'gần nhất '+fmtTime(c.last):'chưa sao lưu lần nào'}</p></div></div>
+    ${err?`<div class="banner" style="margin:0">${ic('alert',18)}<span>${esc(c.lastErr)}</span></div>`:''}${driveProg?`<p class="small" style="color:var(--accent)">${esc(driveProg)}</p>`:''}
+    <div class="btns"><button class="btn pri" data-act="driveBackupNow" ${driveBusy?'disabled':''}>${ic('upload',18)}Sao lưu ngay</button><button class="btn" data-act="openDriveRestore">${ic('refresh',18)}Khôi phục</button></div>
+    ${c.folder?`<a class="btn sm" style="text-decoration:none" href="${esc(c.folder)}" target="_blank" rel="noopener">${ic('file',16)}Mở thư mục trên Drive</a>`:''}</div>
+   <div class="group"><h4>${ic('key',18)}Mã kết nối, hãy cất kỹ</h4><p class="small" style="margin:0">Cài lại app, đổi máy, hay lỡ xóa dữ liệu: vào <b>Thiết lập › Sao lưu Google Drive</b>, dán mã này để lấy lại dữ liệu. Nên lưu vào <b>Zalo › Cloud của tôi</b>. Ai có mã này đọc được dữ liệu sao lưu, đừng gửi cho người khác.</p>
+    <div class="mono small" style="word-break:break-all;background:var(--surface2);padding:10px;border-radius:10px">${esc(code)}</div><button class="btn sm" data-act="copy" data-text="${esc(code)}">${ic('copy',16)}Chép mã kết nối</button></div>
+   <p class="small muted">Giữ 20 bản mới nhất và mỗi ngày một bản trong 90 ngày. Ảnh đồng hồ nằm trong thư mục con “anh”.</p>
+   <button class="btn danger" data-act="driveDisconnect">Ngắt kết nối trên máy này</button>`};
+ },
+ driveRestore(sh){const q=sh.params;
+  const list=q.files?(q.files.length?`<div class="list">${q.files.map(f=>`<button class="li" data-act="driveRestoreOne" data-id="${esc(f.id)}" data-t="${f.time}"><span class="grow"><b>${fmtTime(f.time)}</b><span>${esc(f.name)} · ${Math.max(1,Math.round(f.size/1024))} KB</span></span><span class="chev">${ic('chev',18)}</span></button>`).join('')}</div>`:'<p class="muted">Chưa có bản sao lưu nào trên Drive.</p>')
+   :q.err?`<div class="banner">${ic('alert',18)}<span>${esc(q.err)}</span></div>`:'<p class="muted">Đang lấy danh sách từ Google Drive…</p>';
+  return{title:'Khôi phục từ Google Drive',body:`<p class="small muted">Chọn bản sao lưu. Toàn bộ dữ liệu trên máy này sẽ được thay bằng bản đã chọn, ảnh đồng hồ được tải về sau.</p>${list}`}},
+ restoreHub(){const mi=n=>`<span class="mi" style="background:var(--accent-soft);color:var(--accent);width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex:none">${ic(n,20)}</span>`;
+  return{title:'Khôi phục dữ liệu',body:`<p>Lấy lại phòng, người thuê, hóa đơn, thiết kế 3D và ảnh đồng hồ đã sao lưu.</p>
+   <div class="list"><button class="li" data-act="openDrive">${mi('upload')}<span class="grow"><b>Từ Google Drive</b><span>Nếu đã cài sao lưu Google Drive: dán mã kết nối.</span></span><span class="chev">${ic('chev',18)}</span></button>
+   <label class="li" style="cursor:pointer">${mi('file')}<span class="grow"><b>Từ tệp sao lưu</b><span>${window.SoTroAndroid?'App Android tự lưu mỗi ngày ở Tải xuống › SoTro › SaoLuuTuDong (chọn tệp .zip mới nhất). Hoặc tệp bạn tự sao lưu.':'Tệp .zip hoặc .json bạn đã sao lưu (trong Tệp, iCloud Drive, Zalo…).'}</span></span><input type="file" accept=".json,.zip,application/json,application/zip" data-ch="restore" hidden><span class="chev">${ic('chev',18)}</span></label></div>`}}
+});
+Object.assign(A,{
+ openDrive(){push('drive',{},{code:'',url:''})},
+ openRestoreHub(){push('restoreHub',{},{})},
+ snoozeBackup(){bkSet({snooze:Date.now()+3*864e5});render()},
+ driveCopyScript(){copyText(DRIVE_SCRIPT.replace('__KEY__',driveKey()),'Đã chép mã script. Dán vào script.google.com')},
+ driveConnect(){const d=topSheet().draft;driveConnectWith(String(d.url||'').trim(),driveKey(),false)},
+ driveConnectCode(){const v=String(topSheet().draft.code||'').trim();const i=v.lastIndexOf('#');if(i<0){toast('Mã kết nối gồm URL, dấu # và mật mã');return}driveConnectWith(v.slice(0,i),v.slice(i+1),true)},
+ driveBackupNow(){driveBackup(true).then(()=>refreshDriveSheet());refreshDriveSheet()},
+ openDriveRestore(){push('driveRestore',{files:null,err:''});loadDriveList(topSheet())},
+ driveRestoreOne(el){const id=el.dataset.id;const t=+el.dataset.t;
+  ask('Khôi phục bản sao lưu?',`Bản lưu lúc ${fmtTime(t)}. Toàn bộ dữ liệu hiện tại trên máy này sẽ được thay thế.`,'Khôi phục',async()=>{
+   toast('Đang tải bản sao lưu…');
+   try{const j=await driveCall(driveCfg(),'get',{id});let d;try{d=JSON.parse(j.json)}catch(e){throw{code:'bad_backup'}}if(!d||d.app!=='sotro'||!d.props)throw{code:'bad_backup'};
+    applyBackup(d);driveSet({dirty:false,last:Date.now(),lastErr:''});restorePhotosFromDrive()}catch(e){toast('Không khôi phục được: '+driveErr(e))}},true)},
+ driveDisconnect(){ask('Ngắt kết nối Google Drive?','Máy này sẽ thôi tự sao lưu. Các bản đã sao lưu vẫn còn trên Drive, dán mã kết nối để nối lại.','Ngắt kết nối',()=>{lsSet(LS_DRIVE,{});render();toast('Đã ngắt kết nối')},true)}
 });
 
 /* =========================== app Android (vỏ WebView, xem thư mục android/) =========================== */
