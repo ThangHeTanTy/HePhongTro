@@ -12,7 +12,9 @@ const read = p => readFileSync(join(root, p), 'utf8');
 
 const shell = read('src/shell.html');
 const css = read('src/styles.css');
-const js = read('src/app.js');
+// Mã Google Apps Script cho sao lưu Google Drive được nhúng vào app dưới dạng chuỗi.
+const js = read('src/app.js').replace("'@DRIVE_SCRIPT@'", () => JSON.stringify(read('src/drive-script.gs')));
+if (js.includes('@DRIVE_SCRIPT@')) throw new Error('src/app.js thiếu chỗ chèn mã sao lưu Google Drive');
 
 if (!shell.includes('/*@STYLES@*/') || !shell.includes('//@APP@')) {
   throw new Error('src/shell.html thiếu chỗ chèn /*@STYLES@*/ hoặc //@APP@');

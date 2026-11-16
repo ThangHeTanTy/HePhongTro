@@ -24,6 +24,11 @@
 - **Trang người thuê** (khi chạy trên Claude): người thuê nhập mã phòng để xem hóa đơn, mã QR và báo hỏng hóc.
 - **Giấy tờ (.docx):** hợp đồng thuê phòng, tờ khai thay đổi thông tin cư trú (mẫu CT01, Thông tư 53/2025/TT-BCA), biên bản bàn giao phòng.
 - **Thu chi:** chi phí, lãi tạm tính, biểu đồ 6 tháng, đối chiếu đồng hồ điện, nước tổng với tổng các phòng để phát hiện hao hụt; báo phòng dùng điện bất thường.
+- **Sao lưu và khôi phục** (khi chạy ngoài Claude, dữ liệu nằm trên máy):
+  - **Google Drive của chủ trọ:** dán một đoạn Google Apps Script (`src/drive-script.gs`, app chép sẵn kèm mật mã riêng) vào script.google.com và triển khai. App tự sao lưu dữ liệu sau mỗi lần thay đổi (cách nhau ít nhất 10 phút) và mỗi ngày; ảnh đồng hồ chỉ tải lên một lần. Drive giữ 20 bản mới nhất và mỗi ngày một bản trong 90 ngày. Cài lại app, đổi máy hay lỡ xóa dữ liệu web: dán *mã kết nối* để chọn bản và khôi phục, kèm ảnh.
+  - **App Android tự lưu** mỗi ngày một tệp .zip (dữ liệu và ảnh 2 tháng gần nhất) vào *Tải xuống › SoTro › SaoLuuTuDong*, giữ 5 bản; tệp còn lại sau khi gỡ app (Android 10 trở lên).
+  - **Nhắc** trên Tổng quan khi quá 7 ngày chưa sao lưu ra ngoài máy.
+  - Mở app với dữ liệu mẫu (vừa cài lại) có nút **Khôi phục dữ liệu cũ**.
 - **Nhắc việc:** ngày chốt số, hạn thu tiền, hết hạn hợp đồng; thêm vào Google Calendar.
 
 ## Cấu trúc
@@ -32,6 +37,7 @@
 src/shell.html    Khung trang: tiêu đề, phông chữ, các vùng hiển thị
 src/styles.css    Giao diện (sáng và tối)
 src/app.js        Toàn bộ logic: dữ liệu, tính tiền, 3D, xuất tệp, trang người thuê
+src/drive-script.gs  Google Apps Script sao lưu lên Drive của chủ trọ (build.mjs nhúng vào app)
 build.mjs         Gộp src/ thành tệp HTML hoàn chỉnh
 index.html        Bản đã đóng gói, chạy trực tiếp trên trình duyệt (tạo bởi build.mjs)
 dist/sotro-artifact.html  Bản đã đóng gói để đăng lên Claude (tạo bởi build.mjs)

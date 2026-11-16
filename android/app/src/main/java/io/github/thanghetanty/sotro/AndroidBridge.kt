@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -76,13 +77,50 @@ class AndroidBridge(private val activity: MainActivity) {
         }
     }
 
-    private fun saveToDownloads(name: String, mime: String, bytes: ByteArray): Boolean {
+    /**
+     * Bản tự sao lưu hằng ngày (trang web gọi khi chưa lưu hôm nay). Ghi im lặng vào
+     * Tải xuống/SoTro/SaoLuuTuDong, tệp ở đó còn lại sau khi gỡ app. Chỉ giữ [KEEP_AUTO] bản mới nhất.
+     * Trả về false trên Android 9 trở xuống (cần quyền bộ nhớ, app không xin).
+     */
+    @JavascriptInterface
+    fun autoBackup(filename: String, base64: String): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
+        val bytes = try { Base64.decode(base64, Base64.DEFAULT) } catch (e: IllegalArgumentException) { return false }
+        val ok = saveToDownloads(safeName(filename), "application/zip", bytes, AUTO_DIR)
+        if (ok) pruneAuto()
+        return ok
+    }
+
+    private fun pruneAuto() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        try {
+            val coll = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+            val resolver = activity.contentResolver
+            // Chỉ thấy và xóa được tệp do chính bản cài này tạo; tệp của bản cài trước vẫn giữ nguyên.
+            resolver.query(
+                coll, arrayOf(MediaStore.Downloads._ID),
+                "${MediaStore.Downloads.RELATIVE_PATH}=? AND ${MediaStore.Downloads.DISPLAY_NAME} LIKE ?",
+                arrayOf(AUTO_DIR + "/", "SoTro_tudong_%"),
+                "${MediaStore.Downloads.DATE_ADDED} DESC",
+            )?.use { c ->
+                var i = 0
+                while (c.moveToNext()) {
+                    if (i++ < KEEP_AUTO) continue
+                    resolver.delete(ContentUris.withAppendedId(coll, c.getLong(0)), null, null)
+                }
+            }
+        } catch (e: Exception) {
+            // Không dọn được thì thôi, lần sau thử lại.
+        }
+    }
+
+    private fun saveToDownloads(name: String, mime: String, bytes: ByteArray, relDir: String = Environment.DIRECTORY_DOWNLOADS + "/SoTro"): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
         val resolver = activity.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, name)
             put(MediaStore.Downloads.MIME_TYPE, mime)
-            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/SoTro")
+            put(MediaStore.Downloads.RELATIVE_PATH, relDir)
             put(MediaStore.Downloads.IS_PENDING, 1)
         }
         return try {
@@ -125,6 +163,11 @@ class AndroidBridge(private val activity: MainActivity) {
         } catch (e: ActivityNotFoundException) {
             activity.toast("Không có ứng dụng nào mở được tệp này")
         }
+    }
+
+    companion object {
+        val AUTO_DIR = Environment.DIRECTORY_DOWNLOADS + "/SoTro/SaoLuuTuDong"
+        const val KEEP_AUTO = 5
     }
 
     private fun safeName(name: String): String {
